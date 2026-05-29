@@ -1,0 +1,300 @@
+/* ИМПОРТЫ ДОЛЖНЫ БЫТЬ В САМОМ НАЧАЛЕ */
+@import "tailwindcss";
+@import "@fortawesome/fontawesome-free/css/all.css";
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
+/* ВСЕ ОСТАЛЬНЫЕ СТИЛИ ПОСЛЕ ИМПОРТОВ */
+@layer base {
+  :root {
+    --color-black: #000000;
+    --color-white: #ffffff;
+    --color-charcoal: #1a1a1a;
+    --color-gold: #c8a87c;
+    --color-gold-light: #e8d5b5;
+    --color-gold-dark: #8b7355;
+    --color-beige: #faf6f0;
+    --color-beige-dark: #f5ede3;
+    --color-grey: #e5e5e5;
+    --color-grey-dark: #b8b8b8;
+    --color-rose: #e8c4c4;
+    --color-emerald: #2c4c3b;
+  }
+
+  body {
+    @apply bg-white text-black font-['Inter'] font-light antialiased;
+    overflow-x: hidden;
+  }
+}
+
+/* Убираем все декоративные элементы */
+.ivy-left,
+.ivy-right {
+  display: none;
+}
+
+/* Анимации */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.page-enter-active {
+  animation: fadeInUp 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards;
+}
+
+/* Общие стили для форм */
+.form-input {
+  @apply w-full px-0 py-3 bg-transparent border-b border-black/10 
+         focus:outline-none focus:border-black/30 
+         transition-all font-['Inter'] text-base font-light;
+}
+
+.form-input:focus {
+  border-bottom-width: 1px;
+}
+
+/* Стили для кнопок */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-8 py-3 bg-transparent text-black 
+         border border-black/20 rounded-none font-light text-xs tracking-[0.2em] uppercase
+         transition-all duration-300 cursor-pointer hover:bg-black hover:text-white 
+         hover:border-black;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 px-8 py-3 bg-black text-white 
+         border border-black rounded-none font-light text-xs tracking-[0.2em] uppercase
+         transition-all duration-300 cursor-pointer hover:bg-black/80 
+         hover:border-black/80;
+}
+
+.btn-outline {
+  @apply inline-flex items-center justify-center gap-2 px-8 py-3 bg-transparent text-black 
+         border border-black/30 rounded-none font-light text-xs tracking-[0.2em] uppercase
+         transition-all duration-300 cursor-pointer hover:bg-black hover:text-white 
+         hover:border-black;
+}
+
+/* Заголовки страниц (скрыты, используем кастомные) */
+.page-title {
+  display: none;
+}
+
+/* Сетка для товаров */
+.books-grid {
+  @apply grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6;
+}
+
+/* Стили для селектов (минималистичные) */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0 center;
+  background-size: 12px;
+  cursor: pointer;
+}
+
+/* Стили для чекбоксов (минималистичные) */
+input[type="checkbox"] {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+input[type="checkbox"]:checked {
+  background-color: black;
+  border-color: black;
+  position: relative;
+}
+
+input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 9px;
+}
+
+input[type="checkbox"]:hover {
+  border-color: black;
+}
+
+/* Стили для радио */
+input[type="radio"] {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+input[type="radio"]:checked {
+  border-color: black;
+  background-color: black;
+  box-shadow: inset 0 0 0 3px white;
+}
+
+input[type="radio"]:hover {
+  border-color: black;
+}
+
+/* Убираем стрелки для number input */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  display: none;
+}
+
+/* Стили для скроллбара (минималистичный) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+/* Анимация для модалок */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.modal-enter-active .modal-content,
+.modal-leave-active .modal-content {
+  transition: transform 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-from .modal-content,
+.modal-leave-to .modal-content {
+  transform: scale(0.95);
+}
+
+/* Скелетон загрузки */
+.skeleton {
+  @apply animate-pulse;
+}
+
+/* Контейнер для секций */
+.section-container {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20;
+}
+
+.section-title {
+  @apply text-center mb-12;
+}
+
+.section-title-sub {
+  @apply text-[10px] tracking-[0.3em] uppercase text-black/40 mb-3 font-light;
+}
+
+.section-title-main {
+  @apply text-2xl sm:text-3xl font-light text-black tracking-tight;
+}
+
+.section-title-line {
+  @apply w-12 h-px bg-black/20 mx-auto mt-4;
+}
+
+/* Карточка товара (дополнительные стили) */
+.product-image-container {
+  @apply relative overflow-hidden;
+}
+
+.product-image {
+  @apply w-full h-full object-contain transition-all duration-700 group-hover:scale-105;
+}
+
+/* Корзина (мини) */
+.cart-badge {
+  @apply absolute -top-2 -right-2 w-4 h-4 bg-black text-white text-[9px] flex items-center justify-center;
+}
+
+/* Тосты */
+.toast {
+  @apply fixed bottom-6 right-6 z-50 bg-black text-white px-5 py-3 text-xs tracking-wide shadow-xl;
+}
+
+/* Ссылки */
+.link-underline {
+  @apply relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-px after:bg-black after:transition-all after:duration-300 hover:after:w-full;
+}
+
+/* Градиентные тексты (для акцентов) */
+.text-gradient {
+  background: linear-gradient(135deg, #000 0%, #666 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Медиа-запросы для мобильных */
+@media (max-width: 640px) {
+  .btn, .btn-primary, .btn-outline {
+    @apply px-6 py-2.5 text-[10px];
+  }
+  
+  .form-input {
+    @apply py-2 text-sm;
+  }
+}
+
+@media (min-width: 1280px) {
+  .books-grid {
+    @apply gap-8;
+  }
+}
