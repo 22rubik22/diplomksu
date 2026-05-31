@@ -339,41 +339,67 @@ const onProductSaved = () => {
 }
 
 const deleteProduct = async (product) => {
-  console.group('Delete Product Debug')
-  console.log('Product object:', product)
-  console.log('Product ID:', product.id)
-  console.log('Product title:', product.title)
+  // Формируем понятное сообщение в confirm
+  const confirmMessage = `Вы действительно хотите удалить товар "${product.title}"?\n\n` +
+                        `⚠️ ВНИМАНИЕ: Товар будет удален безвозвратно.\n` +
+                        `Если товар есть в заказах или корзинах покупателей, удаление будет невозможно.`
   
-  if (confirm(`Удалить товар "${product.title}"? (ID: ${product.id})`)) {
-    try {
-      // Проверяем API перед удалением
-      console.log('Sending DELETE request to:', `/books/${product.id}`)
+  if (!confirm(confirmMessage)) {
+    return
+  }
+  
+  try {
+    const response = await bookApi.deleteBook(product.id)
+    
+    if (response.data.success) {
+      success('✅ Товар успешно удалён')
+      await loadProducts() // Перезагружаем список
+    } else {
+      // На случай, если success: false, но нет ошибки HTTP
+      error(response.data.message || 'Неизвестная ошибка при удалении')
+    }
+  } catch (err) {
+    // Детальное логирование ошибки в консоль
+    console.error('=== Ошибка при удалении товара ===')
+    console.error('Товар:', product)
+    console.error('Статус ошибки:', err.response?.status)
+    console.error('Данные ответа:', err.response?.data)
+    
+    // Получаем сообщение об ошибке от сервера
+    let errorMessage = 'Ошибка при удалении товара'
+    
+    if (err.response?.data?.message) {
+      errorMessage = err.response.data.message
       
-      const response = await bookApi.deleteBook(product.id)
-      
-      console.log('Delete response:', response)
-      
-      if (response.data.success) {
-        success('Товар удалён')
-        await loadProducts()
-      } else {
-        console.warn('Delete unsuccessful:', response.data)
-        error(response.data.message || 'Неизвестная ошибка')
+      // Добавляем пояснения для конкретных случаев
+      if (errorMessage.includes('заказах')) {
+        errorMessage = '❌ ' + errorMessage + '\n\n' +
+                      'Этот товар присутствует в оформленных заказах.\n' +
+                      'Для удаления товара сначала удалите или измените заказы, содержащие этот товар.'
+      } else if (errorMessage.includes('корзинах')) {
+        errorMessage = '❌ ' + errorMessage + '\n\n' +
+                      'Этот товар находится в корзинах пользователей.\n' +
+                      'Рекомендуется сначала отключить товар (сделать неактивным),\n' +
+                      'а после очистки корзин пользователей - удалить.'
+      } else if (err.response?.status === 403) {
+        errorMessage = '⛔ Доступ запрещён. Только администраторы могут удалять товары.'
+      } else if (err.response?.status === 401) {
+        errorMessage = '🔒 Требуется авторизация. Пожалуйста, войдите в систему.'
       }
-    } catch (err) {
-      console.error('Delete error:', err)
-      console.error('Error response:', err.response)
-      console.error('Error data:', err.response?.data)
-      
-      // Показываем детали ошибки в консоли и пользователю
-      const errorDetails = err.response?.data?.errors || 
-                          err.response?.data?.message || 
-                          err.message
-      
-      error(`Ошибка 400: ${JSON.stringify(errorDetails)}`)
+    } else if (err.message === 'Network Error') {
+      errorMessage = '🌐 Ошибка сети. Проверьте подключение к интернету.'
+    } else {
+      errorMessage = `❌ Ошибка: ${err.message || 'Неизвестная ошибка'}`
+    }
+    
+    // Показываем понятное сообщение пользователю
+    error(errorMessage)
+    
+    // Дополнительно выводим техническую информацию в консоль
+    if (err.response?.data?.debug) {
+      console.debug('Debug info:', err.response.data.debug)
     }
   }
-  console.groupEnd()
 }
 
 const exportToExcel = async () => {
