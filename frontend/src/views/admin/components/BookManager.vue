@@ -339,17 +339,41 @@ const onProductSaved = () => {
 }
 
 const deleteProduct = async (product) => {
-  if (confirm(`Удалить товар "${product.title}"?`)) {
+  console.group('Delete Product Debug')
+  console.log('Product object:', product)
+  console.log('Product ID:', product.id)
+  console.log('Product title:', product.title)
+  
+  if (confirm(`Удалить товар "${product.title}"? (ID: ${product.id})`)) {
     try {
+      // Проверяем API перед удалением
+      console.log('Sending DELETE request to:', `/books/${product.id}`)
+      
       const response = await bookApi.deleteBook(product.id)
+      
+      console.log('Delete response:', response)
+      
       if (response.data.success) {
         success('Товар удалён')
         await loadProducts()
+      } else {
+        console.warn('Delete unsuccessful:', response.data)
+        error(response.data.message || 'Неизвестная ошибка')
       }
     } catch (err) {
-      error(err.response?.data?.message || 'Ошибка при удалении')
+      console.error('Delete error:', err)
+      console.error('Error response:', err.response)
+      console.error('Error data:', err.response?.data)
+      
+      // Показываем детали ошибки в консоли и пользователю
+      const errorDetails = err.response?.data?.errors || 
+                          err.response?.data?.message || 
+                          err.message
+      
+      error(`Ошибка 400: ${JSON.stringify(errorDetails)}`)
     }
   }
+  console.groupEnd()
 }
 
 const exportToExcel = async () => {
