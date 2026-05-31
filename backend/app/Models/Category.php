@@ -26,7 +26,7 @@ class Category extends Model
     {
         return $this->belongsToMany(Product::class, 'product_category')
                     ->withTimestamps()
-                    ->orderBy('product.title');
+                    ->orderBy('title');
     }
     
     // Иерархические связи

@@ -292,42 +292,48 @@ class CategoryController extends Controller
     /**
      * Удалить категорию (только админ)
      */
-    public function destroy(Category $category)
-    {
-        // Проверка прав доступа
-        if (!auth()->user()?->isAdmin()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Доступ запрещен. Только для администраторов.'
-            ], 403);
-        }
-        
-        // Проверяем, есть ли товары в этой категории
-        if ($category->products()->exists()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Невозможно удалить категорию, так как есть товары, привязанные к ней.'
-            ], 400);
-        }
-        
-        // Удаляем изображение
-        if ($category->image && Storage::disk('public')->exists($category->image)) {
-            Storage::disk('public')->delete($category->image);
-        }
-        
-        // Переназначаем детей (если есть) на родителя
-        if ($category->children()->exists()) {
-            $parentId = $category->parent_id;
-            Category::where('parent_id', $category->id)->update(['parent_id' => $parentId]);
-        }
-        
-        $category->delete();
-        
+    /**
+ * Удалить категорию (только админ)
+ */
+public function destroy(Category $category)
+{
+    // Проверка прав доступа
+    if (!auth()->user()?->isAdmin()) {
         return response()->json([
-            'success' => true,
-            'message' => 'Категория успешно удалена'
-        ]);
+            'success' => false,
+            'message' => 'Доступ запрещен. Только для администраторов.'
+        ], 403);
     }
+    
+    // Проверяем, есть ли товары в этой категории
+    // Используем withoutGlobalScopes или переопределяем запрос без сортировки
+    $hasProducts = $category->products()->withoutGlobalScopes()->exists();
+    
+    if ($hasProducts) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Невозможно удалить категорию, так как есть товары, привязанные к ней.'
+        ], 400);
+    }
+    
+    // Удаляем изображение
+    if ($category->image && Storage::disk('public')->exists($category->image)) {
+        Storage::disk('public')->delete($category->image);
+    }
+    
+    // Переназначаем детей (если есть) на родителя
+    if ($category->children()->exists()) {
+        $parentId = $category->parent_id;
+        Category::where('parent_id', $category->id)->update(['parent_id' => $parentId]);
+    }
+    
+    $category->delete();
+    
+    return response()->json([
+        'success' => true,
+        'message' => 'Категория успешно удалена'
+    ]);
+}
     
     /**
      * Удалить изображение категории (только админ)
