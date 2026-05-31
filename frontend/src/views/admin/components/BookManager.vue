@@ -94,13 +94,13 @@
               <div class="w-6 h-6 border-2 border-[#c8a87c] border-t-transparent rounded-full animate-spin mx-auto"></div>
               <p class="mt-3 text-[#8b7355] text-sm">Загрузка...</p>
             </td>
-            </tr>
+          </tr>
           <tr v-else-if="products.length === 0">
             <td colspan="8" class="p-8 text-center">
               <i class="fas fa-shopping-bag text-3xl text-[#e8e0d8] mb-2"></i>
               <p class="text-[#8b7355] text-sm">Товары не найдены</p>
             </td>
-            </tr>
+           </tr>
           <tr v-for="product in products" :key="product.id" class="border-b border-[#e8e0d8] hover:bg-[#faf8f5] transition-colors">
             <td class="p-4">
               <div class="w-12 h-14 rounded-lg bg-[#faf8f5] border border-[#e8e0d8] flex items-center justify-center overflow-hidden">
@@ -119,11 +119,9 @@
                 {{ product.title }}
               </span>
             </td>
-            <!-- ИСПРАВЛЕНО: brand вместо author -->
             <td class="p-4 text-[#8b7355] text-sm truncate max-w-[120px]" :title="product.brand?.name || '—'">
               {{ product.brand?.name || '—' }}
             </td>
-            <!-- ИСПРАВЛЕНО: categories вместо genres -->
             <td class="p-4">
               <div class="flex flex-wrap gap-1">
                 <span 
@@ -164,7 +162,7 @@
                 </button>
               </div>
             </td>
-          </tr>
+           </tr>
         </tbody>
       </table>
       
@@ -195,7 +193,69 @@
       </div>
     </div>
 
-    <!-- Модальное окно -->
+    <!-- Модальное окно для подтверждения удаления -->
+    <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" @click.self="closeDeleteConfirm">
+      <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl transform transition-all">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <i class="fas fa-exclamation-triangle text-red-500 text-lg"></i>
+          </div>
+          <h3 class="text-lg font-medium text-[#2c2c2c]">Подтверждение удаления</h3>
+        </div>
+        
+        <p class="text-[#2c2c2c] mb-2">
+          Вы действительно хотите удалить товар <strong class="text-[#c8a87c]">{{ productToDelete?.title }}</strong>?
+        </p>
+        <p class="text-sm text-red-500 mb-6">
+          ⚠️ Внимание: Товар будет удален безвозвратно. Если товар есть в заказах или корзинах, удаление будет невозможно.
+        </p>
+        
+        <div class="flex gap-3 justify-end">
+          <button 
+            @click="closeDeleteConfirm"
+            class="px-4 py-2 rounded-xl border border-[#e8e0d8] text-[#8b7355] hover:bg-[#faf8f5] transition-all"
+          >
+            Отмена
+          </button>
+          <button 
+            @click="confirmDelete"
+            :disabled="deleteLoading"
+            class="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            <i v-if="deleteLoading" class="fas fa-spinner fa-spin"></i>
+            <span>Удалить</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Уведомление об ошибке удаления -->
+    <div v-if="deleteError" class="fixed bottom-6 right-6 z-50 animate-slide-up">
+      <div class="bg-red-50 border-l-4 border-red-500 rounded-lg shadow-xl p-4 max-w-md transform transition-all">
+        <div class="flex items-start gap-3">
+          <div class="flex-shrink-0">
+            <i class="fas fa-times-circle text-red-500 text-xl"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="text-sm font-bold text-red-800 mb-1">
+              Невозможно удалить товар
+            </h4>
+            <p class="text-sm text-red-700 whitespace-pre-line leading-relaxed">
+              {{ deleteError }}
+            </p>
+            <button 
+              @click="deleteError = null"
+              class="mt-3 text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
+            >
+              <i class="fas fa-times"></i>
+              <span>Закрыть</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модальное окно для добавления/редактирования -->
     <BookForm 
       v-if="showModal"
       :book="editingProduct"
@@ -217,14 +277,23 @@ import { genreApi } from '@/api/genres'
 import { useToast } from '@/composables/useToast'
 import BookForm from './BookForm.vue'
 
-const { success, error } = useToast()
+const { success, error: toastError } = useToast()
 
+// Основные данные
 const products = ref([])
 const authors = ref([])
-const imageErrors = ref({})
 const genres = ref([])
+const imageErrors = ref({})
+
+// Состояние модальных окон
 const showModal = ref(false)
 const editingProduct = ref(null)
+const showDeleteConfirm = ref(false)
+const productToDelete = ref(null)
+const deleteLoading = ref(false)
+const deleteError = ref(null)
+
+// Состояние загрузки и фильтры
 const exportLoading = ref(false)
 const loading = ref(false)
 const filters = ref({
@@ -241,6 +310,7 @@ const pagination = ref({
   total: 0
 })
 
+// Вспомогательные функции
 const getFullImageUrl = (path) => {
   if (!path) return ''
   if (path.startsWith('http://') || path.startsWith('https://')) {
@@ -259,6 +329,7 @@ const onImageError = (productId) => {
   imageErrors.value[productId] = true
 }
 
+// Загрузка данных
 const loadAuthors = async () => {
   try {
     const response = await authorApi.getAuthors()
@@ -310,7 +381,7 @@ const loadProducts = async (page = 1) => {
     }
   } catch (err) {
     console.error('Error loading products:', err)
-    error('Ошибка при загрузке товаров')
+    toastError('Ошибка при загрузке товаров')
   } finally {
     loading.value = false
   }
@@ -323,6 +394,7 @@ const searchProducts = () => {
   }, 500)
 }
 
+// Управление модальными окнами
 const openModal = (product = null) => {
   editingProduct.value = product
   showModal.value = true
@@ -338,70 +410,98 @@ const onProductSaved = () => {
   closeModal()
 }
 
-const deleteProduct = async (product) => {
-  // Формируем понятное сообщение в confirm
-  const confirmMessage = `Вы действительно хотите удалить товар "${product.title}"?\n\n` +
-                        `⚠️ ВНИМАНИЕ: Товар будет удален безвозвратно.\n` +
-                        `Если товар есть в заказах или корзинах покупателей, удаление будет невозможно.`
+// Удаление товара
+const deleteProduct = (product) => {
+  productToDelete.value = product
+  showDeleteConfirm.value = true
+  deleteError.value = null
+}
+
+const closeDeleteConfirm = () => {
+  showDeleteConfirm.value = false
+  productToDelete.value = null
+  deleteLoading.value = false
+}
+
+const confirmDelete = async () => {
+  if (!productToDelete.value) return
   
-  if (!confirm(confirmMessage)) {
-    return
-  }
+  deleteLoading.value = true
+  deleteError.value = null
   
   try {
-    const response = await bookApi.deleteBook(product.id)
+    const response = await bookApi.deleteBook(productToDelete.value.id)
     
     if (response.data.success) {
       success('✅ Товар успешно удалён')
-      await loadProducts() // Перезагружаем список
+      closeDeleteConfirm()
+      await loadProducts()
     } else {
-      // На случай, если success: false, но нет ошибки HTTP
-      error(response.data.message || 'Неизвестная ошибка при удалении')
+      toastError(response.data.message || 'Неизвестная ошибка при удалении')
+      closeDeleteConfirm()
     }
   } catch (err) {
-    // Детальное логирование ошибки в консоль
     console.error('=== Ошибка при удалении товара ===')
-    console.error('Товар:', product)
+    console.error('Товар:', productToDelete.value)
     console.error('Статус ошибки:', err.response?.status)
     console.error('Данные ответа:', err.response?.data)
     
     // Получаем сообщение об ошибке от сервера
-    let errorMessage = 'Ошибка при удалении товара'
+    const serverMessage = err.response?.data?.message || ''
     
-    if (err.response?.data?.message) {
-      errorMessage = err.response.data.message
-      
-      // Добавляем пояснения для конкретных случаев
-      if (errorMessage.includes('заказах')) {
-        errorMessage = '❌ ' + errorMessage + '\n\n' +
-                      'Этот товар присутствует в оформленных заказах.\n' +
-                      'Для удаления товара сначала удалите или измените заказы, содержащие этот товар.'
-      } else if (errorMessage.includes('корзинах')) {
-        errorMessage = '❌ ' + errorMessage + '\n\n' +
-                      'Этот товар находится в корзинах пользователей.\n' +
-                      'Рекомендуется сначала отключить товар (сделать неактивным),\n' +
-                      'а после очистки корзин пользователей - удалить.'
-      } else if (err.response?.status === 403) {
-        errorMessage = '⛔ Доступ запрещён. Только администраторы могут удалять товары.'
-      } else if (err.response?.status === 401) {
-        errorMessage = '🔒 Требуется авторизация. Пожалуйста, войдите в систему.'
+    // Формируем понятное сообщение для пользователя
+    if (err.response?.status === 400) {
+      if (serverMessage.includes('заказах')) {
+        deleteError.value = serverMessage + '\n\n' +
+          '💡 Решение:\n' +
+          '• Сделайте товар неактивным (чтобы не отображался в каталоге)\n' +
+          '• Или удалите/измените заказы, содержащие этот товар'
+      } 
+      else if (serverMessage.includes('корзинах')) {
+        deleteError.value = serverMessage + '\n\n' +
+          '💡 Решение:\n' +
+          '• Сначала сделайте товар неактивным\n' +
+          '• Через некоторое время, когда корзины очистятся, можно будет удалить'
       }
-    } else if (err.message === 'Network Error') {
-      errorMessage = '🌐 Ошибка сети. Проверьте подключение к интернету.'
-    } else {
-      errorMessage = `❌ Ошибка: ${err.message || 'Неизвестная ошибка'}`
+      else {
+        deleteError.value = serverMessage || 'Ошибка при удалении товара'
+      }
+      
+      // Также показываем через toast
+      toastError(serverMessage || 'Ошибка при удалении товара')
+    } 
+    else if (err.response?.status === 403) {
+      deleteError.value = '⛔ Доступ запрещён\n\nТолько администраторы могут удалять товары.'
+      toastError('Доступ запрещён')
+    }
+    else if (err.response?.status === 401) {
+      deleteError.value = '🔒 Требуется авторизация\n\nПожалуйста, войдите в систему.'
+      toastError('Требуется авторизация')
+    }
+    else if (err.message === 'Network Error') {
+      deleteError.value = '🌐 Ошибка сети\n\nПроверьте подключение к интернету.'
+      toastError('Ошибка сети')
+    }
+    else {
+      deleteError.value = '❌ Произошла неизвестная ошибка\n\nПопробуйте позже или обратитесь к администратору.'
+      toastError('Ошибка при удалении товара')
     }
     
-    // Показываем понятное сообщение пользователю
-    error(errorMessage)
+    // Закрываем окно подтверждения
+    closeDeleteConfirm()
     
-    // Дополнительно выводим техническую информацию в консоль
-    if (err.response?.data?.debug) {
-      console.debug('Debug info:', err.response.data.debug)
-    }
+    // Автоматически скрыть ошибку через 10 секунд
+    setTimeout(() => {
+      if (deleteError.value) {
+        deleteError.value = null
+      }
+    }, 10000)
+  } finally {
+    deleteLoading.value = false
   }
 }
 
+// Экспорт в Excel
 const exportToExcel = async () => {
   exportLoading.value = true
   try {
@@ -426,15 +526,33 @@ const exportToExcel = async () => {
     window.URL.revokeObjectURL(url)
     success('Экспорт выполнен')
   } catch (err) {
-    error('Ошибка при экспорте')
+    toastError('Ошибка при экспорте')
   } finally {
     exportLoading.value = false
   }
 }
 
+// Инициализация
 onMounted(() => {
   loadAuthors()
   loadGenres()
   loadProducts()
 })
 </script>
+
+<style scoped>
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+</style>
