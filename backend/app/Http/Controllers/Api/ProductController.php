@@ -418,39 +418,79 @@ class ProductController extends Controller
     /**
      * Удалить товар (только админ)
      */
-    public function destroy(Product $product)
-    {
-        // Проверка прав доступа
-        if (!auth()->user()?->isAdmin()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Доступ запрещен. Только для администраторов.'
-            ], 403);
-        }
-        
-        // Проверяем, есть ли товар в заказах
-        if ($product->orderItems()->exists()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Невозможно удалить товар, так как он есть в заказах покупателей.'
-            ], 400);
-        }
-        
-        // Проверяем, есть ли товар в корзинах
-        if ($product->cartItems()->exists()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Невозможно удалить товар, так как он есть в корзинах пользователей.'
-            ], 400);
-        }
-        
-        $product->delete();
-        
+   /**
+ * Удалить товар (только админ)
+ */
+public function destroy(Product $product)
+{
+    // Проверка прав доступа
+    if (!auth()->user()?->isAdmin()) {
         return response()->json([
-            'success' => true,
-            'message' => 'Товар успешно удален'
-        ]);
+            'success' => false,
+            'message' => 'Доступ запрещен. Только для администраторов.'
+        ], 403);
     }
+    
+    // Проверяем, есть ли товар в НЕДОСТАВЛЕННЫХ заказах
+    $activeOrderItems = $product->orderItems()
+        ->whereHas('order', function($query) {
+            $query->whereNotIn('status', ['delivered', 'cancelled', 'refunded']);
+        })
+        ->exists();
+    
+    if ($activeOrderItems) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Невозможно удалить товар, так как он есть в активных заказах (не доставленных). Сначала завершите или отмените заказы с этим товаром.'
+        ], 400);
+    }
+    
+    // Если товар есть только в доставленных/отмененных заказах - удаляем записи из order_items
+    $deliveredOrderItems = $product->orderItems()
+        ->whereHas('order', function($query) {
+            $query->whereIn('status', ['delivered', 'cancelled', 'refunded']);
+        })
+        ->get();
+    
+    if ($deliveredOrderItems->isNotEmpty()) {
+        // Удаляем записи о товаре из заказов (сохраняя историю заказов)
+        foreach ($deliveredOrderItems as $orderItem) {
+            // Можно добавить запись в лог или отметить, что товар удален
+            $orderItem->delete();
+        }
+    }
+    
+    // Проверяем, есть ли товар в корзинах
+    if ($product->cartItems()->exists()) {
+        // Удаляем товар из корзин пользователей
+        $product->cartItems()->delete();
+    }
+    
+    // Удаляем связанные изображения
+    if ($product->images) {
+        foreach ($product->images as $image) {
+            // Удаляем файлы изображений
+            if ($image->image_path && file_exists(public_path($image->image_path))) {
+                unlink(public_path($image->image_path));
+            }
+            $image->delete();
+        }
+    }
+    
+    // Удаляем связи с категориями
+    $product->categories()->detach();
+    
+    // Удаляем отзывы о товаре
+    $product->reviews()->delete();
+    
+    // Наконец, удаляем сам товар
+    $product->delete();
+    
+    return response()->json([
+        'success' => true,
+        'message' => 'Товар успешно удален. Связанные записи в доставленных заказах и корзинах очищены.'
+    ]);
+}
     
     /**
      * Переключить статус активности (только админ)
