@@ -204,6 +204,26 @@
                 </div>
                 <div class="flex-1">
                   <p class="text-sm font-light">{{ item.title }}</p>
+                  <!-- Отображение выбранных опций (цвет и размер) -->
+                  <div v-if="item.color || item.size" class="flex flex-wrap gap-2 mt-1.5">
+                    <span 
+                      v-if="item.color" 
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-white/10 rounded-full text-[9px] text-white/60"
+                    >
+                      <span 
+                        class="w-1.5 h-1.5 rounded-full" 
+                        :style="{ backgroundColor: getColorHex(item.color) }"
+                      ></span>
+                      {{ getColorLabel(item.color) }}
+                    </span>
+                    <span 
+                      v-if="item.size" 
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-white/10 rounded-full text-[9px] text-white/60"
+                    >
+                      <i class="fas fa-arrows-alt text-[7px]"></i>
+                      {{ getSizeLabel(item.size) }}
+                    </span>
+                  </div>
                   <p class="text-xs text-white/40 mt-1">{{ item.quantity }} шт × {{ formatPrice(item.price) }} ₽</p>
                 </div>
                 <div class="text-right">
@@ -355,6 +375,63 @@ const totalToPay = computed(() => {
   return Math.max(total, 0)
 })
 
+// Функции для цветов и размеров
+const getColorHex = (colorName) => {
+  const colors = {
+    'черный': '#000000',
+    'белый': '#FFFFFF',
+    'красный': '#FF0000',
+    'синий': '#0000FF',
+    'зеленый': '#008000',
+    'желтый': '#FFFF00',
+    'коричневый': '#8B4513',
+    'бежевый': '#F5F5DC',
+    'серый': '#808080',
+    'розовый': '#FFC0CB',
+    'фиолетовый': '#800080',
+    'оранжевый': '#FFA500',
+    'голубой': '#87CEEB',
+    'бордовый': '#800000',
+    'хаки': '#C3B091'
+  }
+  return colors[colorName] || '#c8a87c'
+}
+
+const getColorLabel = (color) => {
+  const labels = {
+    'черный': 'Черный',
+    'белый': 'Белый',
+    'красный': 'Красный',
+    'синий': 'Синий',
+    'зеленый': 'Зеленый',
+    'желтый': 'Желтый',
+    'коричневый': 'Коричневый',
+    'бежевый': 'Бежевый',
+    'серый': 'Серый',
+    'розовый': 'Розовый',
+    'фиолетовый': 'Фиолетовый',
+    'оранжевый': 'Оранжевый',
+    'голубой': 'Голубой',
+    'бордовый': 'Бордовый',
+    'хаки': 'Хаки'
+  }
+  return labels[color] || color
+}
+
+const getSizeLabel = (size) => {
+  const labels = {
+    'XS': 'XS',
+    'S': 'S',
+    'M': 'M',
+    'L': 'L',
+    'XL': 'XL',
+    'XXL': 'XXL',
+    'ONE_SIZE': 'One Size',
+    'FREE': 'Free Size'
+  }
+  return labels[size] || size
+}
+
 const loadBonusInfo = async () => {
   try {
     const response = await api.get('/bonus-info')
@@ -436,7 +513,9 @@ const createOrder = async () => {
       cart_item_id: item.id,
       book_id: item.book_id,
       quantity: item.quantity,
-      price: item.price
+      price: item.price,
+      color: item.color,
+      size: item.size
     }))
   }
 

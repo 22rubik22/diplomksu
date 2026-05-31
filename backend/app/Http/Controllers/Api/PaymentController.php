@@ -16,6 +16,13 @@ class PaymentController extends Controller
     {
         $this->client = new Client();
         $this->client->setAuth('1355501', 'test_J9zrDkWzsEp48q-aqThhMiZMcIffvJ5jOOkdOoRALRI');
+        
+        // Получаем внутренний CURL клиент и настраиваем его
+        $apiClient = $this->client->getApiClient();
+        
+        // Устанавливаем CURL опции для отключения проверки SSL
+        $apiClient->setCurlOption(CURLOPT_SSL_VERIFYPEER, false);
+        $apiClient->setCurlOption(CURLOPT_SSL_VERIFYHOST, false);
     }
     
     /**
@@ -41,7 +48,6 @@ class PaymentController extends Controller
         try {
             $idempotenceKey = uniqid('', true);
             
-            // Создаём платеж в ЮKassa
             $payment = $this->client->createPayment(
                 [
                     'amount' => [
@@ -61,7 +67,6 @@ class PaymentController extends Controller
                 $idempotenceKey
             );
             
-            // Исправлено: getConfirmationUrl() вместо getUrl()
             $confirmation = $payment->getConfirmation();
             $confirmationUrl = $confirmation->getConfirmationUrl();
             
@@ -127,14 +132,9 @@ class PaymentController extends Controller
         $payload = $request->all();
         Log::info('ЮKassa webhook: ', $payload);
         
-        // Проверяем, что это уведомление об успешной оплате
         if (isset($payload['object']['status']) && $payload['object']['status'] === 'succeeded') {
             $paymentId = $payload['object']['id'];
             Log::info('Payment succeeded: ' . $paymentId);
-            
-            // Здесь можно создать заказ или обновить его статус
-            // Данные о заказе можно получить из metadata
-            // $metadata = $payload['object']['metadata'] ?? [];
         }
         
         return response()->json(['success' => true]);

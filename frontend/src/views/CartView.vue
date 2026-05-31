@@ -50,6 +50,26 @@
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-3">
               <div>
                 <h3 class="text-sm font-light text-black tracking-wide">{{ item.title }}</h3>
+                <!-- Отображение выбранных опций (цвет и размер) -->
+                <div v-if="item.color || item.size" class="flex flex-wrap gap-2 mt-2">
+                  <span 
+                    v-if="item.color" 
+                    class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#f8f8f8] rounded-full text-[10px] text-black/60"
+                  >
+                    <span 
+                      class="w-2 h-2 rounded-full" 
+                      :style="{ backgroundColor: getColorHex(item.color) }"
+                    ></span>
+                    {{ getColorLabel(item.color) }}
+                  </span>
+                  <span 
+                    v-if="item.size" 
+                    class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#f8f8f8] rounded-full text-[10px] text-black/60"
+                  >
+                    <i class="fas fa-arrows-alt text-[8px]"></i>
+                    {{ getSizeLabel(item.size) }}
+                  </span>
+                </div>
                 <p v-if="item.author_name" class="text-[10px] text-black/30 mt-1 font-light">
                   {{ item.author_name }}
                 </p>
@@ -146,6 +166,66 @@ const cartStore = useCartStore()
 const updatingItemId = ref(null)
 const removingItemId = ref(null)
 const imageErrors = ref({})
+
+// Функция для получения hex кода цвета
+const getColorHex = (colorName) => {
+  const colors = {
+    'черный': '#000000',
+    'белый': '#FFFFFF',
+    'красный': '#FF0000',
+    'синий': '#0000FF',
+    'зеленый': '#008000',
+    'желтый': '#FFFF00',
+    'коричневый': '#8B4513',
+    'бежевый': '#F5F5DC',
+    'серый': '#808080',
+    'розовый': '#FFC0CB',
+    'фиолетовый': '#800080',
+    'оранжевый': '#FFA500',
+    'голубой': '#87CEEB',
+    'бордовый': '#800000',
+    'хаки': '#C3B091'
+  }
+  return colors[colorName] || '#c8a87c'
+}
+
+// Функция для получения читаемого названия цвета
+const getColorLabel = (color) => {
+  const labels = {
+    'черный': 'Черный',
+    'белый': 'Белый',
+    'красный': 'Красный',
+    'синий': 'Синий',
+    'зеленый': 'Зеленый',
+    'желтый': 'Желтый',
+    'коричневый': 'Коричневый',
+    'бежевый': 'Бежевый',
+    'серый': 'Серый',
+    'розовый': 'Розовый',
+    'фиолетовый': 'Фиолетовый',
+    'оранжевый': 'Оранжевый',
+    'голубой': 'Голубой',
+    'бордовый': 'Бордовый',
+    'хаки': 'Хаки'
+  }
+  return labels[color] || color
+}
+
+// Функция для получения читаемого названия размера
+const getSizeLabel = (size) => {
+  const labels = {
+    'XS': 'XS (Extra Small)',
+    'S': 'S (Small)',
+    'M': 'M (Medium)',
+    'L': 'L (Large)',
+    'XL': 'XL (Extra Large)',
+    'XXL': 'XXL (Double Extra Large)',
+    'XXXL': 'XXXL (Triple Extra Large)',
+    'ONE_SIZE': 'One Size',
+    'FREE': 'Free Size'
+  }
+  return labels[size] || size
+}
 
 const onImageError = (itemId) => {
   imageErrors.value[itemId] = true

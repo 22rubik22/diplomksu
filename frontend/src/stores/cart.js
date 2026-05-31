@@ -41,14 +41,18 @@ export const useCartStore = defineStore('cart', () => {
       if (response.data.success) {
         const newItems = response.data.data.items.map(item => ({
           id: item.id,
-          book_id: item.book_id,
-          title: item.book?.title || 'Книга',
+          book_id: item.product_id, // product_id -> book_id для совместимости с фронтом
+          title: item.product?.title || 'Товар',
           price: item.price,
           quantity: item.quantity,
-          image: item.book?.cover_image || '/images/default-book.jpg',
-          is_in_stock: item.book?.is_in_stock || true,
-          is_active: item.book?.is_active || false, // Теперь это поле придет с сервера
-          quantity_in_stock: item.book?.quantity || 0
+          image: item.product?.cover_image || '/images/default-product.jpg',
+          is_in_stock: item.product?.is_in_stock || true,
+          is_active: item.product?.is_active || false,
+          quantity_in_stock: item.product?.quantity || 0,
+          color: item.color,
+          size: item.size,
+          color_label: item.color_label,
+          size_label: item.size_label
         }))
         items.value = newItems
         initialized.value = true
@@ -63,20 +67,26 @@ export const useCartStore = defineStore('cart', () => {
 
   const addToCart = async (book, quantity = 1) => {
     const bookId = book.id
+    const color = book.color || null
+    const size = book.size || null
+    const itemKey = `${bookId}_${color || 'none'}_${size || 'none'}`
     
-    // Проверка: если уже добавляем ЭТУ книгу, игнорируем
-    if (addingToCartMap.value[bookId]) {
+    // Проверка: если уже добавляем ЭТУ книгу с такими же опциями, игнорируем
+    if (addingToCartMap.value[itemKey]) {
       return { success: false, message: 'Добавление уже выполняется...' }
     }
     
-    addingToCartMap.value[bookId] = true
+    addingToCartMap.value[itemKey] = true
     loading.value = true
     error.value = null
     
     try {
+      // Отправляем product_id (как ожидает бэкенд) вместо book_id
       const response = await api.post('/cart/add', {
-        book_id: book.id,
-        quantity: quantity
+        product_id: book.id,  // key: product_id, value: book.id
+        quantity: quantity,
+        color: color,
+        size: size
       })
       
       if (response.data.success) {
@@ -86,21 +96,23 @@ export const useCartStore = defineStore('cart', () => {
           newItems = response.data.data.items
         } else if (response.data.items) {
           newItems = response.data.items
-        } else if (response.data.data && Array.isArray(response.data.data)) {
-          newItems = response.data.data
         }
         
         if (newItems) {
           items.value = newItems.map(item => ({
             id: item.id,
-            book_id: item.book_id,
-            title: item.book?.title || 'Книга',
+            book_id: item.product_id,
+            title: item.product?.title || 'Товар',
             price: item.price,
             quantity: item.quantity,
-            image: item.book?.cover_image || '/images/default-book.jpg',
-            is_in_stock: item.book?.is_in_stock || true,
-            is_active: item.book?.is_active || false,
-            quantity_in_stock: item.book?.quantity || 0
+            image: item.product?.cover_image || '/images/default-product.jpg',
+            is_in_stock: item.product?.is_in_stock || true,
+            is_active: item.product?.is_active || false,
+            quantity_in_stock: item.product?.quantity || 0,
+            color: item.color,
+            size: item.size,
+            color_label: item.color_label,
+            size_label: item.size_label
           }))
         } else {
           await loadCart()
@@ -109,12 +121,13 @@ export const useCartStore = defineStore('cart', () => {
         return { success: true, message: response.data.message }
       }
     } catch (err) {
+      console.error('Ошибка добавления в корзину:', err.response?.data)
       const message = err.response?.data?.message || 'Не удалось добавить товар в корзину'
       error.value = message
       return { success: false, message }
     } finally {
       loading.value = false
-      addingToCartMap.value[bookId] = false
+      delete addingToCartMap.value[itemKey]
     }
   }
 
