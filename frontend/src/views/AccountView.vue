@@ -19,13 +19,41 @@
       <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <!-- Боковая панель (1/4) -->
         <div class="lg:col-span-1">
-          <!-- Карточка профиля -->
+          <!-- Карточка профиля с аватаром -->
           <div class="bg-white rounded-2xl p-6 shadow-sm border border-[#e8e0d8] text-center mb-6">
-            <div class="w-24 h-24 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#c8a87c]/20 to-[#8b7355]/10 flex items-center justify-center overflow-hidden">
-              <i class="fas fa-user text-3xl text-[#c8a87c]"></i>
+            <!-- Аватар -->
+            <div class="relative mb-4 inline-block">
+              <div class="w-24 h-24 mx-auto rounded-2xl bg-gradient-to-br from-[#c8a87c]/20 to-[#8b7355]/10 flex items-center justify-center overflow-hidden">
+                <img 
+                  v-if="getAvatarUrl"
+                  :src="getAvatarUrl"
+                  :alt="authStore.userName"
+                  class="w-full h-full object-cover"
+                  @error="handleAvatarError"
+                >
+                <i v-else class="fas fa-user text-3xl text-[#c8a87c]"></i>
+              </div>
+              
+              <!-- Кнопка смены аватара (быстрый доступ) -->
+              <button 
+                @click="goToProfileEdit"
+                class="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-[#c8a87c] text-white flex items-center justify-center hover:bg-[#b89a6e] transition-all shadow-md"
+                title="Изменить аватар"
+              >
+                <i class="fas fa-camera text-xs"></i>
+              </button>
             </div>
+            
             <h3 class="text-[#2c2c2c] font-medium text-lg">{{ authStore.userName || 'Пользователь' }}</h3>
             <p class="text-sm text-[#8b7355] mt-1 break-all">{{ authStore.userEmail || 'email@example.com' }}</p>
+            
+            <!-- Индикатор Gravatar -->
+            <div v-if="isGravatarAvatar" class="mt-2">
+              <p class="text-[9px] text-[#8b7355]">
+                <i class="fas fa-info-circle mr-1"></i>
+                Gravatar аватар
+              </p>
+            </div>
             
             <!-- Бонусы -->
             <div class="mt-5 pt-4 border-t border-[#e8e0d8]">
@@ -257,7 +285,7 @@
 
           <!-- Настройки профиля -->
           <div v-else-if="currentTab === 'profile'" class="bg-white rounded-2xl p-6 shadow-sm border border-[#e8e0d8]">
-            <ProfileEdit />
+            <ProfileEdit @avatar-updated="onAvatarUpdated" />
           </div>
         </div>
       </div>
@@ -286,6 +314,7 @@ const orders = ref([])
 const ordersLoading = ref(false)
 const favoritesLoading = ref(false)
 const userBonus = ref(0)
+const avatarLoadError = ref(false)
 
 const menuItems = [
   { key: 'overview', name: 'Обзор', icon: 'fas fa-chart-line' },
@@ -293,6 +322,32 @@ const menuItems = [
   { key: 'favorites', name: 'Избранное', icon: 'far fa-heart' },
   { key: 'profile', name: 'Профиль', icon: 'fas fa-user-edit' }
 ]
+
+// URL аватара для отображения
+const getAvatarUrl = computed(() => {
+  if (avatarLoadError.value) return null
+  return authStore.userAvatar || null
+})
+
+// Проверка, является ли аватар Gravatar
+const isGravatarAvatar = computed(() => {
+  return authStore.userAvatar?.includes('gravatar.com') || false
+})
+
+const handleAvatarError = () => {
+  avatarLoadError.value = true
+}
+
+const onAvatarUpdated = () => {
+  // Сбрасываем ошибку загрузки и обновляем аватар
+  avatarLoadError.value = false
+  // Принудительно обновляем данные пользователя
+  authStore.fetchUser()
+}
+
+const goToProfileEdit = () => {
+  currentTab.value = 'profile'
+}
 
 const getItemsCount = (order) => {
   if (order.items_count !== undefined) return order.items_count

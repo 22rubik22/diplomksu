@@ -174,7 +174,7 @@ const onYandexError = (err) => {
 
 .form-input:focus {
   outline: none;
-  border-color: #7f8330;
+  border-color:  black;
   box-shadow: 0 0 0 3px rgba(127, 131, 48, 0.1);
 }
 
@@ -183,7 +183,7 @@ const onYandexError = (err) => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #7f8330 0%, #5e1104 100%);
+  background:  black;
   color: white;
   font-weight: 500;
   border-radius: 0.75rem;
@@ -203,7 +203,7 @@ const onYandexError = (err) => {
 .page-title {
   font-family: 'Playfair Display', serif;
   font-size: 2rem;
-  color: #5e1104;
+  color:  black;
   text-align: center;
   margin-bottom: 2rem;
   position: relative;
@@ -217,7 +217,7 @@ const onYandexError = (err) => {
   transform: translateX(-50%);
   width: 60px;
   height: 3px;
-  background: linear-gradient(90deg, #7f8330, #5e1104);
+  background: black;
   border-radius: 2px;
 }
 </style>

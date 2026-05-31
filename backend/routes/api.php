@@ -28,6 +28,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
+    Route::post('/profile/avatar', [AuthController::class, 'updateAvatar']);
+    Route::delete('/profile/avatar', [AuthController::class, 'deleteAvatar']);
 });
 
 Route::middleware(['auth'])->group(function () {

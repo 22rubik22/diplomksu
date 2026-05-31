@@ -191,7 +191,7 @@
             </div>
           </div>
           
-          <!-- Характеристики товара (для сумок/аксессуаров) -->
+          <!-- Характеристики товара -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">Цвета</label>
@@ -288,36 +288,55 @@
             </div>
           </div>
           
-          <!-- Цена и наличие -->
+          <!-- Цена и наличие (исправленная логика) -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
               <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">
-                Цена <span class="text-red-400">*</span>
+                Основная цена <span class="text-red-400">*</span>
               </label>
               <input 
-                v-model.number="form.price"
+                v-model.number="form.base_price"
                 type="number"
                 step="0.01"
                 class="w-full px-4 py-2.5 text-sm border border-[#e8e0d8] rounded-xl bg-white focus:outline-none focus:border-[#c8a87c] transition-all"
-                :class="{ 'border-red-400': errors.price }"
+                :class="{ 'border-red-400': errors.base_price }"
                 required
                 min="0"
+                @input="updateFinalPrice"
               >
-              <p v-if="errors.price" class="text-red-400 text-xs mt-1">{{ errors.price[0] }}</p>
+              <p v-if="errors.base_price" class="text-red-400 text-xs mt-1">{{ errors.base_price[0] }}</p>
             </div>
             
             <div>
-              <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">Старая цена (со скидкой)</label>
+              <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">Процент скидки</label>
               <input 
-                v-model.number="form.old_price"
+                v-model.number="form.discount_percent"
                 type="number"
-                step="0.01"
+                step="1"
                 class="w-full px-4 py-2.5 text-sm border border-[#e8e0d8] rounded-xl bg-white focus:outline-none focus:border-[#c8a87c] transition-all"
-                placeholder="1500"
+                placeholder="0"
                 min="0"
+                max="100"
+                @input="updateFinalPrice"
               >
+              <p class="text-[10px] text-[#8b7355] mt-1">0-100%</p>
             </div>
             
+            <div>
+              <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">
+                Цена со скидкой
+              </label>
+              <input 
+                :value="formattedFinalPrice"
+                type="text"
+                class="w-full px-4 py-2.5 text-sm border border-[#e8e0d8] rounded-xl bg-[#faf8f5] text-[#8b7355] cursor-not-allowed"
+                disabled
+              >
+              <p class="text-[10px] text-[#8b7355] mt-1">Итоговая цена после скидки</p>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-1 gap-5">
             <div>
               <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">
                 Количество <span class="text-red-400">*</span>
@@ -334,19 +353,7 @@
             </div>
           </div>
           
-          <!-- Описания -->
-          <div>
-            <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">Краткое описание</label>
-            <textarea 
-              v-model="form.short_description"
-              rows="2"
-              class="w-full px-4 py-2.5 text-sm border border-[#e8e0d8] rounded-xl bg-white focus:outline-none focus:border-[#c8a87c] transition-all resize-none"
-              placeholder="Краткое описание товара (до 500 символов)"
-              maxlength="500"
-            ></textarea>
-            <p class="text-[10px] text-[#8b7355] mt-1">{{ form.short_description?.length || 0 }}/500</p>
-          </div>
-          
+          <!-- Полное описание -->
           <div>
             <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">Полное описание</label>
             <textarea 
@@ -589,6 +596,7 @@ const creatingGenre = ref(false)
 const newAuthor = ref({ name: '', slug: '', bio: '' })
 const newGenre = ref({ name: '', slug: '', description: '', sort_order: 0, is_active: true })
 
+// Форма с исправленной логикой цены
 const form = ref({
   title: '',
   slug: '',
@@ -601,12 +609,41 @@ const form = ref({
   publication_year: null,
   weight: null,
   description: '',
-  short_description: '',
-  price: null,
-  old_price: null,
+  base_price: null,        // Основная цена (без скидки)
+  discount_percent: 0,     // Процент скидки
+  final_price: null,       // Итоговая цена (будет рассчитана)
   quantity: 0,
   is_active: true
 })
+
+// Форматированная итоговая цена для отображения
+const formattedFinalPrice = computed(() => {
+  if (form.value.final_price) {
+    return new Intl.NumberFormat('ru-RU').format(form.value.final_price) + ' ₽'
+  }
+  return '0 ₽'
+})
+
+// Функция обновления итоговой цены
+const updateFinalPrice = () => {
+  const basePrice = form.value.base_price || 0
+  const discount = form.value.discount_percent || 0
+  
+  if (discount > 0) {
+    const finalPrice = basePrice * (1 - discount / 100)
+    form.value.final_price = Math.round(finalPrice * 100) / 100
+  } else {
+    form.value.final_price = basePrice
+  }
+}
+
+// Функция для обратного расчета (при редактировании)
+const calculateFromFinalPrice = (finalPrice, basePrice) => {
+  if (!finalPrice || !basePrice || basePrice <= 0) return 0
+  if (finalPrice >= basePrice) return 0
+  const discount = ((basePrice - finalPrice) / basePrice) * 100
+  return Math.round(discount)
+}
 
 // Функция для получения hex кода цвета
 const getColorHex = (colorName) => {
@@ -732,11 +769,15 @@ const loadImages = async () => {
 
 const initForm = () => {
   if (fullBookData.value) {
+    const basePrice = fullBookData.value.old_price || fullBookData.value.price || null
+    const finalPrice = fullBookData.value.price || null
+    const discountPercent = calculateFromFinalPrice(finalPrice, basePrice)
+    
     form.value = {
       title: fullBookData.value.title || '',
       slug: fullBookData.value.slug || '',
-      author_id: fullBookData.value.author?.id || null,
-      genre_ids: fullBookData.value.genres?.map(g => g.id) || [],
+      author_id: fullBookData.value.brand?.id || null,
+      genre_ids: fullBookData.value.categories?.map(c => c.id) || [],
       colors: fullBookData.value.color_list || [],
       sizes: fullBookData.value.size_list || [],
       country: fullBookData.value.country || '',
@@ -744,9 +785,9 @@ const initForm = () => {
       publication_year: fullBookData.value.publication_year || null,
       weight: fullBookData.value.weight || null,
       description: fullBookData.value.description || '',
-      short_description: fullBookData.value.short_description || '',
-      price: fullBookData.value.price || null,
-      old_price: fullBookData.value.old_price || null,
+      base_price: basePrice,
+      discount_percent: discountPercent,
+      final_price: finalPrice,
       quantity: fullBookData.value.quantity !== undefined ? fullBookData.value.quantity : 0,
       is_active: fullBookData.value.is_active !== undefined ? fullBookData.value.is_active : true
     }
@@ -759,8 +800,8 @@ const resetForm = () => {
     title: '', slug: '', author_id: null, genre_ids: [],
     colors: [], sizes: [],
     country: '', consist: '', publication_year: null, weight: null,
-    description: '', short_description: '',
-    price: null, old_price: null, quantity: 0,
+    description: '',
+    base_price: null, discount_percent: 0, final_price: null, quantity: 0,
     is_active: true
   }
   existingImages.value = []
@@ -825,27 +866,25 @@ const saveBook = async () => {
   errors.value = {}
   
   try {
-    // Правильные названия полей для бэкенда
     const data = {
       title: form.value.title,
       slug: form.value.slug || null,
-      brand_id: form.value.author_id,  // author_id -> brand_id
-      category_ids: form.value.genre_ids,  // genre_ids -> category_ids
-      color: form.value.colors,  // массив цветов
-      size: form.value.sizes,    // массив размеров
+      brand_id: form.value.author_id,
+      category_ids: form.value.genre_ids,
+      color: form.value.colors,
+      size: form.value.sizes,
       country: form.value.country || null,
       consist: form.value.consist || null,
       publication_year: form.value.publication_year || null,
       weight: form.value.weight || null,
       description: form.value.description || null,
-      short_description: form.value.short_description || null,
-      price: form.value.price,
-      old_price: form.value.old_price || null,
+      price: form.value.final_price,
+      old_price: form.value.base_price,
       quantity: form.value.quantity,
       is_active: form.value.is_active
     }
     
-    console.log('Отправляемые данные:', data) // Для отладки
+    console.log('Отправляемые данные:', data)
     
     let bookId
     if (fullBookData.value?.id) {
@@ -858,7 +897,6 @@ const saveBook = async () => {
       success('Товар успешно создан')
     }
     
-    // Загрузка изображений...
     for (let i = 0; i < images.value.length; i++) {
       const fd = new FormData()
       fd.append('image', images.value[i].file)
@@ -872,7 +910,6 @@ const saveBook = async () => {
     console.error('Ошибка сохранения:', err.response?.data)
     if (err.response?.data?.errors) {
       errors.value = err.response.data.errors
-      // Показываем конкретные ошибки валидации
       const errorMessages = Object.values(errors.value).flat()
       errorMessages.forEach(msg => error(msg))
     } else if (err.response?.data?.message) {

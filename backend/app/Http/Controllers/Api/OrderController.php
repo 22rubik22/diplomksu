@@ -7,6 +7,7 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\BonusUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -72,7 +73,6 @@ class OrderController extends Controller
         
         $order->load('items.product');
         
-        // Форматируем items с дополнительной информацией
         $order->items->transform(function ($item) {
             return [
                 'id' => $item->id,
@@ -100,155 +100,165 @@ class OrderController extends Controller
     /**
      * Создать заказ
      */
-    public function store(Request $request)
-    {
-        $user = auth()->user();
-        
-        if (!$user) {
+   /**
+ * Создать заказ
+ */
+public function store(Request $request)
+{
+    $user = auth()->user();
+    
+    if (!$user) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Требуется авторизация'
+        ], 401);
+    }
+    
+    $validated = $request->validate([
+        'delivery_method' => 'required|string|max:255',
+        'delivery_address' => 'required|string',
+        'delivery_date' => 'nullable|date|after_or_equal:today',
+        'payment_method' => 'required|string|max:255',
+        'comment' => 'nullable|string',
+        'use_bonus' => 'boolean',
+        'bonus_amount' => 'nullable|numeric|min:0', // ДОБАВИТЬ
+        'items' => 'nullable|array',
+    ]);
+    
+    $cart = Cart::where('user_id', $user->id)->first();
+    
+    if (!$cart || $cart->items->isEmpty()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Корзина пуста'
+        ], 400);
+    }
+    
+    // Фильтруем только активные товары
+    $activeCartItems = $cart->items->filter(function ($item) {
+        return $item->product && $item->product->is_active && $item->product->is_in_stock;
+    });
+    
+    if ($activeCartItems->isEmpty()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Нет доступных товаров для оформления заказа'
+        ], 400);
+    }
+    
+    // Проверка наличия
+    foreach ($activeCartItems as $item) {
+        $product = $item->product;
+        if ($product->quantity < $item->quantity) {
             return response()->json([
                 'success' => false,
-                'message' => 'Требуется авторизация'
-            ], 401);
-        }
-        
-        $validated = $request->validate([
-            'delivery_method' => 'required|string|max:255',
-            'delivery_address' => 'required|string',
-            'delivery_date' => 'nullable|date|after_or_equal:today',
-            'payment_method' => 'required|string|max:255',
-            'comment' => 'nullable|string',
-            'use_bonus' => 'boolean',
-            'items' => 'nullable|array',
-        ]);
-        
-        $cart = Cart::where('user_id', $user->id)->first();
-        
-        if (!$cart || $cart->items->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Корзина пуста'
+                'message' => "Товара \"{$product->title}\" ({$item->color_label} {$item->size_label}) осталось только {$product->quantity} шт."
             ], 400);
-        }
-        
-        // Фильтруем только активные товары
-        $activeCartItems = $cart->items->filter(function ($item) {
-            return $item->product && $item->product->is_active && $item->product->is_in_stock;
-        });
-        
-        if ($activeCartItems->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Нет доступных товаров для оформления заказа'
-            ], 400);
-        }
-        
-        // Проверка наличия
-        foreach ($activeCartItems as $item) {
-            $product = $item->product;
-            if ($product->quantity < $item->quantity) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Товара \"{$product->title}\" ({$item->color_label} {$item->size_label}) осталось только {$product->quantity} шт."
-                ], 400);
-            }
-        }
-        
-        // Рассчитываем сумму
-        $subtotal = $activeCartItems->sum(function ($item) {
-            return $item->subtotal;
-        });
-        
-        $deliveryPrice = $this->calculateDeliveryPrice($validated['delivery_method']);
-        $totalAmount = $subtotal + $deliveryPrice;
-        
-        // Расчет использования бонусов (максимум 50% от суммы заказа)
-        // Примечание: если у тебя нет системы бонусов, можно закомментировать эту логику
-        $bonusUsed = 0;
-        
-        DB::beginTransaction();
-        
-        try {
-            // Создаем заказ
-            $order = Order::create([
-                'order_number' => Order::generateOrderNumber(),
-                'user_id' => $user->id,
-                'status' => Order::STATUS_NEW,
-                'total_amount' => $totalAmount,
-                'delivery_method' => $validated['delivery_method'],
-                'delivery_price' => $deliveryPrice,
-                'delivery_address' => $validated['delivery_address'],
-                'delivery_date' => $validated['delivery_date'] ?? null,
-                'payment_method' => $validated['payment_method'],
-                'payment_status' => $validated['payment_method'] === 'card' ? Order::PAYMENT_PAID : Order::PAYMENT_PENDING,
-                'customer_name' => $user->name,
-                'customer_email' => $user->email,
-                'customer_phone' => $user->phone ?? '',
-                'comment' => $validated['comment'] ?? null,
-            ]);
-            
-            // Создаем элементы заказа
-            foreach ($activeCartItems as $item) {
-                $product = $item->product;
-                
-                $order->items()->create([
-                    'product_id' => $product->id,
-                    'product_title' => $product->title,
-                    'product_brand' => $product->brand->name ?? null,
-                    'color' => $item->color ?? null,
-                    'size' => $item->size ?? null,
-                    'price' => $item->price,
-                    'quantity' => $item->quantity,
-                    'total' => $item->subtotal,
-                ]);
-                
-                // Уменьшаем количество товара
-                $product->decrement('quantity', $item->quantity);
-                
-                // Удаляем из корзины
-                $item->delete();
-            }
-            
-            DB::commit();
-            
-            // Загружаем созданные items с форматированием
-            $order->load('items');
-            $order->items->transform(function ($item) {
-                return [
-                    'id' => $item->id,
-                    'product_id' => $item->product_id,
-                    'product_title' => $item->product_title,
-                    'product_brand' => $item->product_brand,
-                    'color' => $item->color,
-                    'size' => $item->size,
-                    'color_label' => $item->color_label,
-                    'size_label' => $item->size_label,
-                    'full_title' => $item->full_title,
-                    'options_text' => $item->options_text,
-                    'price' => $item->price,
-                    'quantity' => $item->quantity,
-                    'total' => $item->total,
-                ];
-            });
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Заказ успешно создан',
-                'data' => [
-                    'order' => $order,
-                    'bonus_used' => $bonusUsed,
-                ]
-            ], 201);
-            
-        } catch (\Exception $e) {
-            DB::rollBack();
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Ошибка при создании заказа',
-                'error' => $e->getMessage()
-            ], 500);
         }
     }
+    
+    // Получаем бонусы пользователя
+    $bonusRecord = BonusUser::firstOrCreate(
+        ['user_id' => $user->id],
+        ['bonus' => 0]
+    );
+    
+    // Рассчитываем сумму
+    $subtotal = $activeCartItems->sum(function ($item) {
+        return $item->subtotal;
+    });
+    
+    $deliveryPrice = $this->calculateDeliveryPrice($validated['delivery_method']);
+    $totalAmount = $subtotal + $deliveryPrice;
+    
+    // Расчет бонусов к начислению (5% от стоимости товаров)
+    $bonusToEarn = floor($subtotal * 0.05);
+    
+    // ИСПРАВЛЕНО: используем переданную сумму бонусов
+    $bonusUsed = 0;
+    if (($validated['use_bonus'] ?? false) && isset($validated['bonus_amount']) && $validated['bonus_amount'] > 0) {
+        // Проверяем, что запрошенная сумма не превышает доступные бонусы и лимит 50%
+        $maxAllowedBonus = min($bonusRecord->bonus, floor($totalAmount * 0.5));
+        $bonusUsed = min($validated['bonus_amount'], $maxAllowedBonus);
+        $totalAmount = $totalAmount - $bonusUsed;
+    }
+    
+    DB::beginTransaction();
+    
+    try {
+        // Создаем заказ
+        $order = Order::create([
+            'order_number' => Order::generateOrderNumber(),
+            'user_id' => $user->id,
+            'status' => Order::STATUS_NEW,
+            'total_amount' => $totalAmount,
+            'delivery_method' => $validated['delivery_method'],
+            'delivery_price' => $deliveryPrice,
+            'delivery_address' => $validated['delivery_address'],
+            'delivery_date' => $validated['delivery_date'] ?? null,
+            'payment_method' => $validated['payment_method'],
+            'payment_status' => $validated['payment_method'] === 'card' ? Order::PAYMENT_PAID : Order::PAYMENT_PENDING,
+            'customer_name' => $user->name,
+            'customer_email' => $user->email,
+            'customer_phone' => $user->phone ?? '',
+            'comment' => $validated['comment'] ?? null,
+        ]);
+        
+        // Создаем элементы заказа
+        foreach ($activeCartItems as $item) {
+            $product = $item->product;
+            
+            $order->items()->create([
+                'product_id' => $product->id,
+                'product_title' => $product->title,
+                'product_brand' => $product->brand->name ?? null,
+                'color' => $item->color ?? null,
+                'size' => $item->size ?? null,
+                'price' => $item->price,
+                'quantity' => $item->quantity,
+                'total' => $item->subtotal,
+            ]);
+            
+            // Уменьшаем количество товара
+            $product->decrement('quantity', $item->quantity);
+            
+            // Удаляем из корзины
+            $item->delete();
+        }
+        
+        // Списание бонусов (используем рассчитанную сумму)
+        if ($bonusUsed > 0) {
+            $bonusRecord->decrement('bonus', $bonusUsed);
+        }
+        
+        // Начисление бонусов (только для оплаченных заказов)
+        if ($bonusToEarn > 0 && $order->payment_status === Order::PAYMENT_PAID) {
+            $bonusRecord->increment('bonus', $bonusToEarn);
+        }
+        
+        DB::commit();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Заказ успешно создан',
+            'data' => [
+                'order' => $order->load('items'),
+                'bonus_used' => $bonusUsed,
+                'bonus_earned' => $bonusToEarn,
+                'current_bonus' => $bonusRecord->fresh()->bonus
+            ]
+        ], 201);
+        
+    } catch (\Exception $e) {
+        DB::rollBack();
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Ошибка при создании заказа',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
     
     /**
      * Отменить заказ
@@ -298,6 +308,46 @@ class OrderController extends Controller
                 'message' => 'Ошибка при отмене заказа'
             ], 500);
         }
+    }
+    
+    /**
+     * Получить информацию о бонусах пользователя
+     */
+    public function getBonusInfo()
+    {
+        $user = auth()->user();
+        
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Требуется авторизация'
+            ], 401);
+        }
+        
+        $bonusRecord = BonusUser::firstOrCreate(
+            ['user_id' => $user->id],
+            ['bonus' => 0]
+        );
+        
+        // Считаем сумму корзины для расчета доступных бонусов
+        $cart = Cart::where('user_id', $user->id)->first();
+        $cartTotal = 0;
+        
+        if ($cart && !$cart->items->isEmpty()) {
+            $cartTotal = $cart->items->sum('subtotal');
+        }
+        
+        $maxBonusToUse = min($bonusRecord->bonus, floor($cartTotal * 0.5));
+        
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'current_bonus' => $bonusRecord->bonus,
+                'max_bonus_to_use' => $maxBonusToUse,
+                'bonus_percent' => 5,
+                'max_bonus_percent' => 50
+            ]
+        ]);
     }
     
     /**
@@ -475,14 +525,11 @@ class OrderController extends Controller
             $query->orderBy('created_at', 'desc');
         }
         
-        // Получаем все заказы для экспорта
         $orders = $query->get();
         
-        // Создаем Excel документ
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
-        // Заголовок
         $exportDate = now()->format('d.m.Y H:i:s');
         $sheet->setCellValue('A1', "Отчет по заказам за {$exportDate}");
         $sheet->mergeCells('A1:R1');
@@ -490,7 +537,6 @@ class OrderController extends Controller
         $sheet->getStyle('A1')->getFont()->setSize(14)->setBold(true);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         
-        // Заголовки колонок
         $headers = [
             'A' => 'ID',
             'B' => 'Номер заказа',
@@ -512,12 +558,10 @@ class OrderController extends Controller
             'R' => 'Комментарий'
         ];
         
-        // Устанавливаем заголовки во второй строке
         foreach ($headers as $column => $header) {
             $sheet->setCellValue($column . '2', $header);
         }
         
-        // Стиль для заголовков
         $headerStyle = $sheet->getStyle('A2:R2');
         $headerStyle->getFont()->setBold(true)->setSize(11);
         $headerStyle->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
@@ -525,10 +569,8 @@ class OrderController extends Controller
             ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()->setARGB('FFE0E0E0');
         
-        // Данные
         $row = 3;
         foreach ($orders as $order) {
-            // Формируем список товаров с опциями
             $itemsList = [];
             $optionsList = [];
             foreach ($order->items as $item) {
@@ -563,23 +605,19 @@ class OrderController extends Controller
             $sheet->setCellValue('Q' . $row, implode('; ', $itemsList));
             $sheet->setCellValue('R' . $row, $order->comment ?? '—');
             
-            // Форматирование сумм
             $sheet->getStyle('I' . $row)->getNumberFormat()->setFormatCode('#,##0.00');
             $sheet->getStyle('K' . $row)->getNumberFormat()->setFormatCode('#,##0.00');
             
-            // Цветовая индикация статусов
             $this->applyStatusColor($sheet, 'D' . $row, $order->status);
             $this->applyPaymentStatusColor($sheet, 'E' . $row, $order->payment_status);
             
             $row++;
         }
         
-        // Автоматическая ширина колонок
         foreach (range('A', 'R') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
         
-        // Добавляем границы
         $lastRow = $row - 1;
         if ($lastRow >= 2) {
             $styleArray = [
@@ -593,10 +631,8 @@ class OrderController extends Controller
             $sheet->getStyle('A2:R' . $lastRow)->applyFromArray($styleArray);
         }
         
-        // Фиксируем первую строку
         $sheet->freezePane('A3');
         
-        // Создаем файл
         $fileName = 'orders-report-' . now()->format('Y-m-d_H-i-s') . '.xlsx';
         
         if (ob_get_length()) {
@@ -632,7 +668,6 @@ class OrderController extends Controller
         
         $query = Order::with('user', 'items.product');
         
-        // Фильтры (те же, что и в основном экспорте)
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
@@ -659,14 +694,12 @@ class OrderController extends Controller
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
-        // Заголовок
         $exportDate = now()->format('d.m.Y H:i:s');
         $sheet->setCellValue('A1', "Детальный отчет по заказам за {$exportDate}");
         $sheet->mergeCells('A1:N1');
         $sheet->getStyle('A1')->getFont()->setSize(14)->setBold(true);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         
-        // Заголовки для детального отчета
         $headers = [
             'A' => 'ID заказа',
             'B' => 'Номер заказа',
@@ -688,7 +721,6 @@ class OrderController extends Controller
             $sheet->setCellValue($column . '2', $header);
         }
         
-        // Стиль заголовков
         $headerStyle = $sheet->getStyle('A2:N2');
         $headerStyle->getFont()->setBold(true);
         $headerStyle->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
@@ -696,11 +728,9 @@ class OrderController extends Controller
             ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()->setARGB('FFE0E0E0');
         
-        // Данные (каждый товар в отдельной строке)
         $row = 3;
         foreach ($orders as $order) {
             if ($order->items->isEmpty()) {
-                // Если нет товаров, все равно показываем заказ
                 $sheet->setCellValue('A' . $row, $order->id);
                 $sheet->setCellValue('B' . $row, $order->order_number);
                 $sheet->setCellValue('C' . $row, $order->created_at->format('d.m.Y H:i:s'));
@@ -741,12 +771,10 @@ class OrderController extends Controller
             }
         }
         
-        // Автоширина
         foreach (range('A', 'N') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
         
-        // Границы
         $lastRow = $row - 1;
         if ($lastRow >= 2) {
             $styleArray = [
@@ -777,9 +805,6 @@ class OrderController extends Controller
         exit;
     }
     
-    /**
-     * Получить текстовую метку статуса заказа
-     */
     private function getOrderStatusLabel($status)
     {
         $labels = [
@@ -791,13 +816,9 @@ class OrderController extends Controller
             Order::STATUS_CANCELLED => 'Отменен',
             Order::STATUS_REFUNDED => 'Возврат',
         ];
-        
         return $labels[$status] ?? $status;
     }
     
-    /**
-     * Получить текстовую метку статуса оплаты
-     */
     private function getPaymentStatusLabel($status)
     {
         $labels = [
@@ -806,13 +827,9 @@ class OrderController extends Controller
             Order::PAYMENT_FAILED => 'Ошибка оплаты',
             Order::PAYMENT_REFUNDED => 'Возврат',
         ];
-        
         return $labels[$status] ?? $status;
     }
     
-    /**
-     * Получить текстовую метку способа доставки
-     */
     private function getDeliveryMethodLabel($method)
     {
         $labels = [
@@ -820,13 +837,9 @@ class OrderController extends Controller
             'courier' => 'Курьер',
             'post' => 'Почта',
         ];
-        
         return $labels[$method] ?? $method;
     }
     
-    /**
-     * Получить текстовую метку способа оплаты
-     */
     private function getPaymentMethodLabel($method)
     {
         $labels = [
@@ -834,23 +847,19 @@ class OrderController extends Controller
             'cash' => 'Наличные',
             'online' => 'Онлайн оплата',
         ];
-        
         return $labels[$method] ?? $method;
     }
     
-    /**
-     * Применить цвет для статуса заказа
-     */
     private function applyStatusColor($sheet, $cell, $status)
     {
         $colors = [
-            Order::STATUS_NEW => 'FF3498DB',      // Синий
-            Order::STATUS_PENDING => 'FFF39C12',   // Оранжевый
-            Order::STATUS_PROCESSING => 'FF9B59B6', // Фиолетовый
-            Order::STATUS_SHIPPED => 'FF2ECC71',   // Зеленый
-            Order::STATUS_DELIVERED => 'FF27AE60', // Темно-зеленый
-            Order::STATUS_CANCELLED => 'FFE74C3C', // Красный
-            Order::STATUS_REFUNDED => 'FFE67E22',  // Оранжевый
+            Order::STATUS_NEW => 'FF3498DB',
+            Order::STATUS_PENDING => 'FFF39C12',
+            Order::STATUS_PROCESSING => 'FF9B59B6',
+            Order::STATUS_SHIPPED => 'FF2ECC71',
+            Order::STATUS_DELIVERED => 'FF27AE60',
+            Order::STATUS_CANCELLED => 'FFE74C3C',
+            Order::STATUS_REFUNDED => 'FFE67E22',
         ];
         
         if (isset($colors[$status])) {
@@ -858,16 +867,13 @@ class OrderController extends Controller
         }
     }
     
-    /**
-     * Применить цвет для статуса оплаты
-     */
     private function applyPaymentStatusColor($sheet, $cell, $status)
     {
         $colors = [
-            Order::PAYMENT_PENDING => 'FFF39C12',  // Оранжевый
-            Order::PAYMENT_PAID => 'FF2ECC71',     // Зеленый
-            Order::PAYMENT_FAILED => 'FFE74C3C',   // Красный
-            Order::PAYMENT_REFUNDED => 'FFE67E22', // Оранжевый
+            Order::PAYMENT_PENDING => 'FFF39C12',
+            Order::PAYMENT_PAID => 'FF2ECC71',
+            Order::PAYMENT_FAILED => 'FFE74C3C',
+            Order::PAYMENT_REFUNDED => 'FFE67E22',
         ];
         
         if (isset($colors[$status])) {

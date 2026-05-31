@@ -116,7 +116,7 @@
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
         <div>
           <i class="fas fa-map-marker-alt text-black/30 text-lg mb-3"></i>
-          <p class="text-black/60 text-xs font-light">г. Москва, Кутузовский пр-т, 36</p>
+          <p class="text-black/60 text-xs font-light">г. Иркутск, Ленина 5а</p>
         </div>
         <div>
           <i class="fas fa-phone-alt text-black/30 text-lg mb-3"></i>

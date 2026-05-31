@@ -6,27 +6,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use YooKassa\Client;
 
 class PaymentController extends Controller
 {
-    private $client;
-    
-    public function __construct()
-    {
-        $this->client = new Client();
-        $this->client->setAuth('1355501', 'test_J9zrDkWzsEp48q-aqThhMiZMcIffvJ5jOOkdOoRALRI');
-        
-        // Получаем внутренний CURL клиент и настраиваем его
-        $apiClient = $this->client->getApiClient();
-        
-        // Устанавливаем CURL опции для отключения проверки SSL
-        $apiClient->setCurlOption(CURLOPT_SSL_VERIFYPEER, false);
-        $apiClient->setCurlOption(CURLOPT_SSL_VERIFYHOST, false);
-    }
-    
     /**
-     * Создание платежа
+     * Создание платежа (симуляция)
      */
     public function createPayment(Request $request)
     {
@@ -45,47 +29,27 @@ class PaymentController extends Controller
             'description' => 'nullable|string'
         ]);
         
-        try {
-            $idempotenceKey = uniqid('', true);
-            
-            $payment = $this->client->createPayment(
-                [
-                    'amount' => [
-                        'value' => (string)number_format($validated['amount'], 2, '.', ''),
-                        'currency' => 'RUB',
-                    ],
-                    'confirmation' => [
-                        'type' => 'redirect',
-                        'return_url' => $validated['return_url'],
-                    ],
-                    'capture' => true,
-                    'description' => $validated['description'] ?? 'Оплата заказа в магазине',
-                    'metadata' => [
-                        'user_id' => $user->id,
-                    ]
-                ],
-                $idempotenceKey
-            );
-            
-            $confirmation = $payment->getConfirmation();
-            $confirmationUrl = $confirmation->getConfirmationUrl();
-            
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'payment_id' => $payment->getId(),
-                    'confirmation_url' => $confirmationUrl
-                ]
-            ]);
-            
-        } catch (\Exception $e) {
-            Log::error('ЮKassa payment error: ' . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Ошибка при создании платежа: ' . $e->getMessage()
-            ], 500);
-        }
+        // Симуляция успешного создания платежа
+        $paymentId = 'payment_' . uniqid() . '_' . time();
+        
+        // Формируем URL для возврата с параметрами успеха
+        $returnUrl = $validated['return_url'];
+        $separator = strpos($returnUrl, '?') === false ? '?' : '&';
+        $confirmationUrl = $returnUrl . $separator . 'payment_status=success&payment_id=' . $paymentId;
+        
+        Log::info('Payment created (simulation)', [
+            'user_id' => $user->id,
+            'payment_id' => $paymentId,
+            'amount' => $validated['amount']
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'payment_id' => $paymentId,
+                'confirmation_url' => $confirmationUrl
+            ]
+        ]);
     }
     
     /**
@@ -102,40 +66,24 @@ class PaymentController extends Controller
             ], 400);
         }
         
-        try {
-            $payment = $this->client->getPaymentInfo($paymentId);
-            
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'status' => $payment->getStatus(),
-                    'paid' => $payment->getPaid(),
-                    'amount' => $payment->getAmount()->getValue()
-                ]
-            ]);
-            
-        } catch (\Exception $e) {
-            Log::error('Check payment error: ' . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 500);
-        }
+        // Всегда возвращаем успешный статус для симуляции
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'status' => 'succeeded',
+                'paid' => true,
+                'amount' => $request->input('amount', 0)
+            ]
+        ]);
     }
     
     /**
-     * Webhook для уведомлений от ЮKassa
+     * Webhook для уведомлений
      */
     public function webhook(Request $request)
     {
         $payload = $request->all();
-        Log::info('ЮKassa webhook: ', $payload);
-        
-        if (isset($payload['object']['status']) && $payload['object']['status'] === 'succeeded') {
-            $paymentId = $payload['object']['id'];
-            Log::info('Payment succeeded: ' . $paymentId);
-        }
+        Log::info('Payment webhook received: ', $payload);
         
         return response()->json(['success' => true]);
     }

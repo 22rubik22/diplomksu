@@ -204,7 +204,6 @@
                 </div>
                 <div class="flex-1">
                   <p class="text-sm font-light">{{ item.title }}</p>
-                  <!-- Отображение выбранных опций (цвет и размер) -->
                   <div v-if="item.color || item.size" class="flex flex-wrap gap-2 mt-1.5">
                     <span 
                       v-if="item.color" 
@@ -332,8 +331,8 @@ const form = ref({
 })
 
 const deliveryMethods = [
-  { id: 'courier', name: 'Курьером', price: 300 },
   { id: 'pickup', name: 'Самовывоз', price: 0 },
+  { id: 'courier', name: 'Курьером', price: 300 },
   { id: 'post', name: 'Почтой', price: 350 }
 ]
 
@@ -363,7 +362,8 @@ const bonusToEarn = computed(() => Math.floor(cartStore.total * 0.05))
 
 const maxBonusToUse = computed(() => {
   if (!bonusInfo.value) return 0
-  const maxByPercent = Math.floor((cartStore.total + deliveryPrice.value) * 0.5)
+  const totalWithDelivery = cartStore.total + deliveryPrice.value
+  const maxByPercent = Math.floor(totalWithDelivery * 0.5)
   return Math.min(bonusInfo.value.current_bonus, maxByPercent)
 })
 
@@ -375,7 +375,6 @@ const totalToPay = computed(() => {
   return Math.max(total, 0)
 })
 
-// Функции для цветов и размеров
 const getColorHex = (colorName) => {
   const colors = {
     'черный': '#000000',
@@ -509,9 +508,10 @@ const createOrder = async () => {
     comment: form.value.comment,
     coordinates: selectedCoordinates.value,
     use_bonus: useBonus.value,
+    bonus_amount: bonusToUse.value, // ДОБАВИТЬ - передаем конкретную сумму
     items: activeItems.value.map(item => ({
       cart_item_id: item.id,
-      book_id: item.book_id,
+      product_id: item.book_id,
       quantity: item.quantity,
       price: item.price,
       color: item.color,
@@ -535,9 +535,9 @@ const createOrder = async () => {
 const onPaymentSuccess = async (paymentData) => {
   showPaymentModal.value = false
   try {
-    await createOrder()
+    const orderResult = await createOrder()
     success('Заказ успешно оплачен!')
-    router.push('/orders')
+    router.push('/account?tab=orders')
   } catch (err) {
     error(err.message || 'Оплата прошла, но не удалось создать заказ')
   }
@@ -572,30 +572,21 @@ const submitOrder = async () => {
     return
   }
 
-  if (form.value.paymentMethod === 'cash') {
-    submitting.value = true
-    try {
-      await createOrder()
-      success('Заказ успешно оформлен!')
-      router.push('/orders')
-    } catch (err) {
-      error(err.message || 'Не удалось создать заказ')
-    } finally {
-      submitting.value = false
-    }
-    return
-  }
-
-  if (form.value.paymentMethod === 'card') {
-    submitting.value = true
-    try {
+  submitting.value = true
+  
+  try {
+    if (form.value.paymentMethod === 'card') {
       await createPayment()
       showPaymentModal.value = true
-    } catch (err) {
-      error(err.message || 'Не удалось инициализировать оплату')
-    } finally {
-      submitting.value = false
+    } else {
+      await createOrder()
+      success('Заказ успешно оформлен!')
+      router.push('/account?tab=orders')
     }
+  } catch (err) {
+    error(err.message || 'Не удалось создать заказ')
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -604,9 +595,16 @@ const formatPrice = (price) => {
   return new Intl.NumberFormat('ru-RU').format(price)
 }
 
+// ИСПРАВЛЕНА ФУНКЦИЯ ЗАГРУЗКИ АДРЕСА - объединяем city и address_line
 const loadUserAddress = () => {
-  if (authStore.userAddress) {
-    form.value.address = authStore.userAddress
+  const city = authStore.userCity
+  const addressLine = authStore.userAddress
+  
+  if (city || addressLine) {
+    const addressParts = []
+    if (city) addressParts.push(city)
+    if (addressLine) addressParts.push(addressLine)
+    form.value.address = addressParts.join(', ')
   }
 }
 

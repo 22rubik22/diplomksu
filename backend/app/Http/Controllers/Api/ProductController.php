@@ -128,6 +128,7 @@ class ProductController extends Controller
                 'is_active' => $product->is_active,
                 'color_list' => $product->color_list,
                 'size_list' => $product->size_list,
+                'quantity' => $product->quantity,
                 'categories' => $product->categories->map(function ($category) {
                     return [
                         'id' => $category->id,

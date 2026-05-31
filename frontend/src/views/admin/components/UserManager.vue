@@ -57,7 +57,6 @@
       <table class="w-full border-collapse">
         <thead>
           <tr class="border-b border-[#e8e0d8] bg-[#faf8f5]">
-            <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">ID</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Аватар</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Имя</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Email</th>
@@ -81,7 +80,6 @@
             </td>
           </tr>
           <tr v-for="user in users" :key="user.id" class="border-b border-[#e8e0d8] hover:bg-[#faf8f5] transition-colors">
-            <td class="p-4 text-[#8b7355] text-sm">{{ user.id }}</td>
             <td class="p-4">
               <div class="w-8 h-8 rounded-full overflow-hidden bg-[#faf8f5] flex items-center justify-center border border-[#e8e0d8]">
                 <img 

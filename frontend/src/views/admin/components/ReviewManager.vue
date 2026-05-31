@@ -47,7 +47,6 @@
       <table class="w-full border-collapse">
         <thead>
           <tr class="border-b border-[#e8e0d8] bg-[#faf8f5]">
-            <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">ID</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Товар</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Пользователь</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Оценка</th>
@@ -71,10 +70,9 @@
             </td>
           </tr>
           <tr v-for="review in reviews" :key="review.id" class="border-b border-[#e8e0d8] hover:bg-[#faf8f5] transition-colors">
-            <td class="p-4 text-[#8b7355] text-sm">{{ review.id }}</td>
             <td class="p-4">
               <div class="text-[#2c2c2c] text-sm font-medium truncate max-w-[180px]" :title="review.book?.title">
-                {{ review.book?.title || '—' }}
+                {{ review.product?.title || '—' }}
               </div>
             </td>
             <td class="p-4">

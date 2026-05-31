@@ -39,11 +39,9 @@
       <table class="w-full border-collapse">
         <thead>
           <tr class="border-b border-[#e8e0d8] bg-[#faf8f5]">
-            <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">ID</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Логотип</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Название</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Slug</th>
-            <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Страна</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Товаров</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Действия</th>
           </tr>
@@ -62,7 +60,6 @@
             </td>
           </tr>
           <tr v-for="brand in brands" :key="brand.id" class="border-b border-[#e8e0d8] hover:bg-[#faf8f5] transition-colors">
-            <td class="p-4 text-[#8b7355] text-sm">{{ brand.id }}</td>
             <td class="p-4">
               <div class="w-10 h-10 rounded-full bg-[#faf8f5] border border-[#e8e0d8] flex items-center justify-center overflow-hidden">
                 <img 
@@ -78,7 +75,6 @@
               <span class="text-[#2c2c2c] text-sm font-medium">{{ brand.name }}</span>
             </td>
             <td class="p-4 text-[#8b7355] text-sm font-mono">{{ brand.slug }}</td>
-            <td class="p-4 text-[#8b7355] text-sm">{{ brand.country || '—' }}</td>
             <td class="p-4">
               <span class="px-2 py-1 rounded-full bg-[#faf8f5] text-[#8b7355] text-xs">
                 {{ brand.products_count || 0 }}

@@ -83,30 +83,20 @@
 </template>
 
 <script setup>
-const socials = [
-  { icon: 'fab fa-instagram', color: 'text-[#8b7355]' },
-  { icon: 'fab fa-telegram', color: 'text-[#8b7355]' },
-  { icon: 'fab fa-whatsapp', color: 'text-[#8b7355]' },
-  { icon: 'fab fa-pinterest', color: 'text-[#8b7355]' }
-]
 
 const sections = [
   { path: '/catalog', name: 'Сумки', icon: 'fas fa-shopping-bag' },
   { path: '/collections', name: 'Коллекции', icon: 'fas fa-layer-group' },
-  { path: '/new', name: 'Новинки', icon: 'fas fa-star' },
-  { path: '/sale', name: 'Распродажа', icon: 'fas fa-tags' }
 ]
 
 const help = [
   { path: '/delivery-payment', name: 'Доставка и оплата', icon: 'fas fa-truck' },
-  { path: '/return', name: 'Возврат и обмен', icon: 'fas fa-undo-alt' },
   { path: '/faq', name: 'Вопросы и ответы', icon: 'fas fa-question-circle' },
   { path: '/contacts', name: 'Контакты', icon: 'fas fa-phone-alt' },
-  { path: '/sitemap', name: 'Карта сайта', icon: 'fas fa-sitemap' }
 ]
 
 const contacts = [
-  { href: '#', text: 'г. Москва, Кутузовский пр-т, 36', icon: 'fas fa-map-marker-alt' },
+  { href: '#', text: 'г. Иркутск, Ленина 5а', icon: 'fas fa-map-marker-alt' },
   { href: 'tel:74951234567', text: '+7 (495) 123-45-67', icon: 'fas fa-phone' },
   { href: 'mailto:info@ladibag.ru', text: 'info@ladibag.ru', icon: 'fas fa-envelope' }
 ]

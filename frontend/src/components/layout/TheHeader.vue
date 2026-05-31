@@ -28,26 +28,49 @@
           <div v-if="authStore.isAuthenticated" class="relative group">
             <button 
               @click="toggleDropdown" 
-              class="text-xl sm:text-2xl text-[#8b7355] hover:text-[#c8a87c] transition-all hover:-translate-y-1 focus:outline-none"
+              class="flex items-center justify-center text-xl sm:text-2xl text-[#8b7355] hover:text-[#c8a87c] transition-all hover:-translate-y-1 focus:outline-none"
             >
-              <i class="fas fa-user-circle"></i>
+              <!-- Аватар или иконка -->
+              <img 
+                v-if="getAvatarUrl && !avatarLoadError"
+                :src="getAvatarUrl"
+                alt="Avatar"
+                class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border-2 border-[#c8a87c]/30"
+                @error="handleAvatarError"
+              >
+              <i v-else class="fas fa-user-circle"></i>
             </button>
             
             <!-- Выпадающее меню -->
             <div 
               v-show="showDropdown" 
-              class="absolute right-0 mt-3 w-64 bg-white rounded-lg shadow-xl border border-[#d4c5b0]/40 overflow-hidden z-50"
+              class="absolute right-0 mt-3 w-72 bg-white rounded-lg shadow-xl border border-[#d4c5b0]/40 overflow-hidden z-50"
               @click.stop
             >
-              <div class="px-4 py-3 border-b border-[#d4c5b0]/30">
-                <p class="text-sm font-medium text-[#2c2c2c]">{{ authStore.user?.name }}</p>
-                <p class="text-xs text-[#8b7355] mt-1">{{ authStore.user?.email }}</p>
-                <p class="text-xs text-[#c8a87c] mt-1 capitalize">
-                  Роль: 
-                  {{ authStore.user?.role === 'admin' ? 'Администратор' : 
-                     authStore.user?.role === 'manager' ? 'Менеджер' : 'Покупатель' }}
-                </p>
+              <!-- Шапка выпадающего меню с аватаром -->
+              <div class="px-4 py-3 border-b border-[#d4c5b0]/30 bg-gradient-to-r from-[#faf6f0] to-white">
+                <div class="flex items-center gap-3">
+                  <!-- Аватар в выпадающем меню -->
+                  <div class="w-12 h-12 rounded-full overflow-hidden bg-[#faf6f0] border-2 border-[#c8a87c]/30 flex items-center justify-center">
+                    <img 
+                      v-if="getAvatarUrl && !avatarLoadError"
+                      :src="getAvatarUrl"
+                      alt="Avatar"
+                      class="w-full h-full object-cover"
+                      @error="handleAvatarError"
+                    >
+                    <i v-else class="fas fa-user text-2xl text-[#c8a87c]"></i>
+                  </div>
+                  <div class="flex-1">
+                    <p class="text-sm font-medium text-[#2c2c2c]">{{ authStore.user?.name }}</p>
+                    <p class="text-xs text-[#8b7355] truncate">{{ authStore.user?.email }}</p>
+                    <p class="text-xs text-[#c8a87c] mt-0.5 capitalize">
+                      {{ getUserRoleText() }}
+                    </p>
+                  </div>
+                </div>
               </div>
+              
               <div class="py-2">
                 <router-link 
                   to="/account" 
@@ -58,12 +81,20 @@
                   <span class="ml-2">Профиль</span>
                 </router-link>
                 <router-link 
-                  to="/orders" 
+                  to="/account?tab=orders" 
                   class="flex items-center px-4 py-2 text-sm text-[#8b7355] hover:bg-[#faf6f0] hover:text-[#c8a87c] transition-colors"
                   @click="closeAll"
                 >
                   <i class="fas fa-shopping-bag w-5"></i>
                   <span class="ml-2">Мои заказы</span>
+                </router-link>
+                <router-link 
+                  to="/favorites" 
+                  class="flex items-center px-4 py-2 text-sm text-[#8b7355] hover:bg-[#faf6f0] hover:text-[#c8a87c] transition-colors"
+                  @click="closeAll"
+                >
+                  <i class="far fa-heart w-5"></i>
+                  <span class="ml-2">Избранное</span>
                 </router-link>
                 <!-- Админ панель доступна и админу, и менеджеру -->
                 <router-link 
@@ -125,13 +156,26 @@
       <div v-if="mobileMenuOpen" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] md:hidden" @click="closeMobileMenu">
         <nav class="mobile-nav bg-white w-80 h-full overflow-y-auto shadow-2xl" @click.stop>
           <div class="pt-24 pb-6 px-6">
-            <!-- Информация о пользователе в мобильном меню -->
+            <!-- Информация о пользователе в мобильном меню с аватаром -->
             <div v-if="authStore.isAuthenticated" class="mb-6 p-4 bg-[#faf6f0] rounded-xl">
               <div class="flex items-center gap-3">
-                <i class="fas fa-user-circle text-3xl text-[#c8a87c]"></i>
-                <div>
+                <!-- Аватар в мобильном меню -->
+                <div class="w-12 h-12 rounded-full overflow-hidden bg-[#faf6f0] border-2 border-[#c8a87c]/30 flex items-center justify-center">
+                  <img 
+                    v-if="getAvatarUrl && !avatarLoadError"
+                    :src="getAvatarUrl"
+                    alt="Avatar"
+                    class="w-full h-full object-cover"
+                    @error="handleAvatarError"
+                  >
+                  <i v-else class="fas fa-user text-2xl text-[#c8a87c]"></i>
+                </div>
+                <div class="flex-1">
                   <p class="font-medium text-[#2c2c2c]">{{ authStore.user?.name }}</p>
-                  <p class="text-xs text-[#8b7355]">{{ authStore.user?.email }}</p>
+                  <p class="text-xs text-[#8b7355] truncate">{{ authStore.user?.email }}</p>
+                  <p class="text-xs text-[#c8a87c] mt-0.5 capitalize">
+                    {{ getUserRoleText() }}
+                  </p>
                 </div>
               </div>
             </div>
@@ -212,6 +256,18 @@ const router = useRouter()
 const route = useRoute()
 const showDropdown = ref(false)
 const mobileMenuOpen = ref(false)
+const avatarLoadError = ref(false)
+
+// URL аватара для отображения
+const getAvatarUrl = computed(() => {
+  if (avatarLoadError.value) return null
+  return authStore.userAvatar || null
+})
+
+// Обработка ошибки загрузки аватара
+const handleAvatarError = () => {
+  avatarLoadError.value = true
+}
 
 // Счетчик на основе itemsCount (computed автоматически обновляется)
 const cartCount = computed(() => cartStore.itemsCount)
@@ -221,6 +277,14 @@ const hasAdminAccess = computed(() => {
   return authStore.isAuthenticated && 
          (authStore.user?.role === 'admin' || authStore.user?.role === 'manager')
 })
+
+// Текст роли пользователя
+const getUserRoleText = () => {
+  const role = authStore.user?.role
+  if (role === 'admin') return 'Администратор'
+  if (role === 'manager') return 'Менеджер'
+  return 'Покупатель'
+}
 
 // Дополнительный watch для принудительного обновления
 watch(() => cartStore.lastUpdated, () => {
@@ -234,20 +298,16 @@ const navItems = [
   { path: '/catalog', name: 'Каталог' },
   { path: '/collections', name: 'Коллекции' },
   { path: '/authors', name: 'Бренды' },
-  { path: '/new', name: 'Новинки' },
-  { path: '/sale', name: 'Sale' },
   { path: '/about', name: 'О нас' }
 ]
 
-// Иконки для мобильного меню (обновлены под стилистику магазина сумок)
+// Иконки для мобильного меню
 const getIconForPath = (path) => {
   const icons = {
     '/': 'fas fa-home',
     '/catalog': 'fas fa-shopping-bag',
     '/collections': 'fas fa-layer-group',
-    '/brands': 'fas fa-tag',
-    '/new': 'fas fa-star',
-    '/sale': 'fas fa-percent',
+    '/authors': 'fas fa-tag',
     '/about': 'fas fa-info-circle'
   }
   return icons[path] || 'fas fa-circle'

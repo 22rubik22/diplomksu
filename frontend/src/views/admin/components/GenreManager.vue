@@ -39,12 +39,10 @@
       <table class="w-full border-collapse">
         <thead>
           <tr class="border-b border-[#e8e0d8] bg-[#faf8f5]">
-            <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">ID</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Изображение</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Название</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Slug</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Родитель</th>
-            <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Порядок</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Статус</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Действия</th>
           </tr>
@@ -63,7 +61,6 @@
             </td>
           </tr>
           <tr v-for="genre in genres" :key="genre.id" class="border-b border-[#e8e0d8] hover:bg-[#faf8f5] transition-colors">
-            <td class="p-4 text-[#8b7355] text-sm">{{ genre.id }}</td>
             <td class="p-4">
               <div class="w-10 h-10 rounded-lg bg-[#faf8f5] border border-[#e8e0d8] flex items-center justify-center overflow-hidden">
                 <img 
@@ -86,7 +83,6 @@
               </span>
               <span v-else class="text-sm text-[#8b7355]">—</span>
             </td>
-            <td class="p-4 text-[#8b7355] text-sm">{{ genre.sort_order }}</td>
             <td class="p-4">
               <button 
                 @click="toggleActive(genre)"

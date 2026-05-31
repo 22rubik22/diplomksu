@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
 
 class AuthController extends Controller
 {
@@ -54,47 +55,48 @@ class AuthController extends Controller
     /**
      * Авторизация пользователя
      */
-   public function login(Request $request)
-{
-    $validated = $request->validate([
-        'email' => 'required|email',
-        'password' => 'required|string',
-        'remember' => 'boolean',
-    ]);
-
-    $credentials = [
-        'email' => $validated['email'],
-        'password' => $validated['password'],
-    ];
-
-    $remember = $validated['remember'] ?? false;
-
-    if (Auth::attempt($credentials, $remember)) {
-        $request->session()->regenerate();
-        
-        $user = Auth::user();
-        
-        // Исправлено: возвращаем ВСЕ поля пользователя
-        return response()->json([
-            'success' => true,
-            'message' => 'Вход выполнен успешно',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'address_line' => $user->address_line,
-                'city' => $user->city,
-                'role' => $user->role,
-                'created_at' => $user->created_at,
-            ]
+    public function login(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+            'remember' => 'boolean',
+        ]);
+    
+        $credentials = [
+            'email' => $validated['email'],
+            'password' => $validated['password'],
+        ];
+    
+        $remember = $validated['remember'] ?? false;
+    
+        if (Auth::attempt($credentials, $remember)) {
+            $request->session()->regenerate();
+            
+            $user = Auth::user();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Вход выполнен успешно',
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'address_line' => $user->address_line,
+                    'city' => $user->city,
+                    'role' => $user->role,
+                    'avatar' => $user->avatar_url, // ДОБАВЛЕНО
+                    'created_at' => $user->created_at,
+                ]
+            ]);
+        }
+    
+        throw ValidationException::withMessages([
+            'email' => ['Неверный email или пароль.'],
         ]);
     }
-
-    throw ValidationException::withMessages([
-        'email' => ['Неверный email или пароль.'],
-    ]);
-}
+    
 
     /**
      * Выход из системы
@@ -136,6 +138,7 @@ class AuthController extends Controller
                 'address_line' => $user->address_line,
                 'city' => $user->city,
                 'role' => $user->role,
+                'avatar' => $user->avatar_url, // ДОБАВЛЕНО
                 'created_at' => $user->created_at,
             ]
         ]);
@@ -144,51 +147,13 @@ class AuthController extends Controller
     /**
      * Проверка авторизации
      */
-  public function check(Request $request)
-{
-    $user = Auth::user();
-    
-    return response()->json([
-        'authenticated' => Auth::check(),
-        'user' => Auth::check() ? [
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'phone' => $user->phone,
-            'address_line' => $user->address_line,
-            'city' => $user->city,
-            'role' => $user->role,
-            'created_at' => $user->created_at,
-        ] : null
-    ]);
-}
-/**
-     * Обновление профиля пользователя
-     */
-    public function updateProfile(Request $request)
+    public function check(Request $request)
     {
         $user = Auth::user();
         
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Не авторизован'
-            ], 401);
-        }
-        
-        $validated = $request->validate([
-            'name' => 'sometimes|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'address_line' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:255',
-        ]);
-        
-        $user->update($validated);
-        
         return response()->json([
-            'success' => true,
-            'message' => 'Профиль успешно обновлен',
-            'user' => [
+            'authenticated' => Auth::check(),
+            'user' => Auth::check() ? [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
@@ -196,10 +161,51 @@ class AuthController extends Controller
                 'address_line' => $user->address_line,
                 'city' => $user->city,
                 'role' => $user->role,
+                'avatar' => $user->avatar_url, // ДОБАВЛЕНО
                 'created_at' => $user->created_at,
-            ]
+            ] : null
         ]);
     }
+    
+/**
+     * Обновление профиля пользователя
+     */
+    public function updateProfile(Request $request)
+{
+    $user = Auth::user();
+    
+    if (!$user) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Не авторизован'
+        ], 401);
+    }
+    
+    $validated = $request->validate([
+        'name' => 'sometimes|string|max:255',
+        'phone' => 'nullable|string|max:20',
+        'address_line' => 'nullable|string|max:255',
+        'city' => 'nullable|string|max:255',
+    ]);
+    
+    $user->update($validated);
+    
+    return response()->json([
+        'success' => true,
+        'message' => 'Профиль успешно обновлен',
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'address_line' => $user->address_line,
+            'city' => $user->city,
+            'role' => $user->role,
+            'avatar' => $user->avatar_url, // ДОБАВЛЕНО
+            'created_at' => $user->created_at,
+        ]
+    ]);
+}
     
     /**
      * Смена пароля
@@ -544,4 +550,73 @@ public function getUserById($id)
         ]);
     }
 
+    /**
+ * Обновление аватара пользователя
+ */
+public function updateAvatar(Request $request)
+{
+    $user = Auth::user();
+    
+    if (!$user) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Не авторизован'
+        ], 401);
+    }
+    
+    $request->validate([
+        'avatar' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:2048', // 2MB max
+    ]);
+    
+    // Удаляем старый аватар, если он не gravatar
+    if ($user->avatar && !str_contains($user->avatar, 'gravatar.com')) {
+        $oldPath = str_replace('/storage', 'public', $user->avatar);
+        if (Storage::disk('public')->exists($oldPath)) {
+            Storage::disk('public')->delete($oldPath);
+        }
+    }
+    
+    // Сохраняем новый аватар
+    $path = $request->file('avatar')->store('avatars', 'public');
+    $user->avatar = Storage::url($path);
+    $user->save();
+    
+    return response()->json([
+        'success' => true,
+        'message' => 'Аватар успешно обновлен',
+        'avatar_url' => $user->avatar_url
+    ]);
+}
+
+/**
+ * Удаление аватара
+ */
+public function deleteAvatar(Request $request)
+{
+    $user = Auth::user();
+    
+    if (!$user) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Не авторизован'
+        ], 401);
+    }
+    
+    // Удаляем файл, если это не gravatar
+    if ($user->avatar && !str_contains($user->avatar, 'gravatar.com')) {
+        $path = str_replace('/storage', 'public', $user->avatar);
+        if (Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
+    }
+    
+    $user->avatar = null;
+    $user->save();
+    
+    return response()->json([
+        'success' => true,
+        'message' => 'Аватар удален',
+        'avatar_url' => $user->avatar_url
+    ]);
+}
 }

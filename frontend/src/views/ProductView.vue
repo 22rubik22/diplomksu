@@ -71,12 +71,19 @@
               class="relative group"
             >
               <div 
-                class="w-10 h-10 rounded-full border-2 transition-all"
+                class="w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center"
                 :class="[
-                  selectedColor === color ? 'border-black' : 'border-black/10',
+                  selectedColor === color ? 'border-black ring-2 ring-black/10' : 'border-black/10',
                   getColorBgClass(color)
                 ]"
-              ></div>
+              >
+                <!-- Галочка для выбранного цвета -->
+                <i 
+                  v-if="selectedColor === color" 
+                  class="fas fa-check text-[10px]"
+                  :class="isWhiteOrLightColor(color) ? 'text-black' : 'text-white'"
+                ></i>
+              </div>
               <span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-black/40 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
                 {{ getColorLabel(color) }}
               </span>
@@ -265,9 +272,107 @@
       </div>
     </div>
 
-    <!-- Отзывы (оставляем без изменений) -->
+    <!-- Отзывы -->
     <div class="mt-16 pt-8 border-t border-black/5">
-      <!-- ... содержимое отзывов остается таким же ... -->
+      <div class="text-center mb-8">
+        <p class="text-[10px] tracking-[0.3em] uppercase text-black/40 mb-2 font-light">Reviews</p>
+        <h3 class="text-xl font-light text-black tracking-tight">Отзывы</h3>
+        <div class="w-8 h-px bg-black/20 mx-auto mt-3"></div>
+      </div>
+
+      <!-- Средняя оценка -->
+      <div class="text-center mb-8">
+        <div class="text-4xl font-light text-black">{{ averageRating.toFixed(1) }}</div>
+        <div class="flex justify-center gap-1 my-2">
+          <i v-for="i in 5" :key="i" :class="i <= Math.round(averageRating) ? 'fas fa-star text-black/60' : 'far fa-star text-black/20'" class="text-sm"></i>
+        </div>
+        <p class="text-[10px] text-black/30">{{ reviews.length }} отзыва</p>
+      </div>
+
+      <!-- Форма отзыва -->
+      <div v-if="isLoggedIn" class="max-w-2xl mx-auto mb-10 p-6 bg-[#f8f8f8]">
+        <h4 class="text-xs tracking-[0.2em] uppercase text-black/40 mb-4 font-light">
+          {{ userReview ? 'Редактировать отзыв' : 'Оставить отзыв' }}
+        </h4>
+        
+        <div v-if="!canReview && !userReview" class="mb-4 p-3 bg-white/50 text-center">
+          <p class="text-black/40 text-xs">Вы можете оставить отзыв только после покупки товара</p>
+        </div>
+        
+        <form v-else-if="canReview || userReview" @submit.prevent="submitReview">
+          <div class="flex justify-center gap-2 mb-4">
+            <button
+              v-for="star in 5"
+              :key="star"
+              type="button"
+              @click="reviewForm.rating = star"
+              class="text-xl transition-colors"
+              :class="star <= reviewForm.rating ? 'text-black/60' : 'text-black/20'"
+            >
+              <i class="fas fa-star"></i>
+            </button>
+          </div>
+          
+          <input
+            type="text"
+            v-model="reviewForm.title"
+            placeholder="Заголовок"
+            class="w-full px-0 py-2 mb-3 text-sm border-b border-black/10 bg-transparent focus:outline-none focus:border-black/30 transition-all"
+          >
+          
+          <textarea
+            v-model="reviewForm.comment"
+            rows="3"
+            placeholder="Ваш отзыв..."
+            class="w-full px-0 py-2 text-sm border-b border-black/10 bg-transparent focus:outline-none focus:border-black/30 transition-all resize-none"
+          ></textarea>
+          
+          <div class="flex gap-3 mt-4">
+            <button
+              type="submit"
+              class="px-6 py-2 bg-black text-white text-[10px] tracking-[0.2em] uppercase font-light hover:bg-black/80 transition-all"
+              :disabled="submittingReview || reviewForm.rating === 0"
+            >
+              {{ userReview ? 'Сохранить' : 'Отправить' }}
+            </button>
+            <button
+              v-if="userReview"
+              type="button"
+              @click="cancelEdit"
+              class="px-6 py-2 border border-black/20 text-black/40 text-[10px] tracking-[0.2em] uppercase font-light hover:bg-black/5 transition-all"
+            >
+              Отмена
+            </button>
+          </div>
+        </form>
+      </div>
+      
+      <div v-else class="text-center mb-10">
+        <p class="text-black/40 text-sm">
+          <a href="/login" class="underline hover:text-black/60">Войдите</a> чтобы оставить отзыв
+        </p>
+      </div>
+
+      <!-- Список отзывов -->
+      <div v-if="reviews.length > 0" class="max-w-2xl mx-auto space-y-6">
+        <div v-for="review in reviews" :key="review.id" class="border-b border-black/5 pb-4 last:border-0">
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <span class="text-sm font-light text-black/60">{{ review.user_name }}</span>
+              <span class="text-[10px] text-black/30 ml-2">{{ formatDate(review.created_at) }}</span>
+            </div>
+            <div class="flex gap-0.5">
+              <i v-for="i in 5" :key="i" :class="i <= review.rating ? 'fas fa-star text-black/40' : 'far fa-star text-black/20'" class="text-[10px]"></i>
+            </div>
+          </div>
+          <h5 v-if="review.title" class="text-sm font-light text-black/60 mb-1">{{ review.title }}</h5>
+          <p class="text-xs text-black/40 font-light">{{ review.comment }}</p>
+        </div>
+      </div>
+      
+      <div v-else class="text-center py-8">
+        <p class="text-black/30 text-sm font-light">Отзывов пока нет. Будьте первым!</p>
+      </div>
     </div>
 
     <!-- Модальное окно 18+ -->
@@ -397,11 +502,21 @@ const averageRating = computed(() => {
   return sum / reviews.value.length
 })
 
+// Определяет, является ли цвет светлым (для выбора цвета галочки)
+const isWhiteOrLightColor = (color) => {
+  const lightColors = [
+    'белый', 'бежевый', 'светло-серый', 'серый', 
+    'голубой', 'розовый', 'желтый', 'светло-зеленый',
+    'кремовый', 'слоновая кость', 'персиковый'
+  ]
+  return lightColors.includes(color)
+}
+
 // Функция для получения CSS класса цвета
 const getColorBgClass = (color) => {
   const colorMap = {
     'черный': 'bg-black',
-    'белый': 'bg-white',
+    'белый': 'bg-white border border-gray-200',
     'красный': 'bg-red-600',
     'синий': 'bg-blue-600',
     'зеленый': 'bg-green-600',
@@ -457,6 +572,11 @@ const getCategoriesList = () => {
 const formatPrice = (price) => {
   if (!price && price !== 0) return '0'
   return new Intl.NumberFormat('ru-RU').format(price)
+}
+
+const formatDate = (date) => {
+  if (!date) return ''
+  return new Date(date).toLocaleDateString('ru-RU')
 }
 
 const onImageError = () => {
@@ -671,6 +791,8 @@ const handleAddToCart = async () => {
       showNotification('Товар добавлен в корзину')
       checkIfInCart()
       quantity.value = 1
+    } else {
+      showNotification(result.message, 'error')
     }
   } finally {
     addingToCart.value = false

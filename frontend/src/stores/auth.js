@@ -128,16 +128,91 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this.loading = false
       }
+    },
+    
+    // ========== НОВЫЕ МЕТОДЫ ДЛЯ АВАТАРА ==========
+    
+    /**
+     * Обновление аватара пользователя
+     */
+    async updateAvatar(file) {
+      this.loading = true
+      try {
+        const formData = new FormData()
+        formData.append('avatar', file)
+        
+        const response = await api.post('/profile/avatar', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        })
+        
+        if (response.data.success) {
+          // Обновляем данные пользователя с новым аватаром
+          if (this.user) {
+            this.user.avatar = response.data.avatar_url
+          }
+          return { 
+            success: true, 
+            message: response.data.message,
+            avatar_url: response.data.avatar_url
+          }
+        }
+      } catch (error) {
+        console.error('Update avatar error:', error)
+        return {
+          success: false,
+          message: error.response?.data?.message || 'Ошибка обновления аватара',
+          errors: error.response?.data?.errors
+        }
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    /**
+     * Удаление аватара пользователя
+     */
+    async deleteAvatar() {
+      this.loading = true
+      try {
+        const response = await api.delete('/profile/avatar')
+        
+        if (response.data.success) {
+          // Обновляем данные пользователя (аватар станет null)
+          if (this.user) {
+            this.user.avatar = null
+          }
+          return { 
+            success: true, 
+            message: response.data.message,
+            avatar_url: response.data.avatar_url
+          }
+        }
+      } catch (error) {
+        console.error('Delete avatar error:', error)
+        return {
+          success: false,
+          message: error.response?.data?.message || 'Ошибка удаления аватара',
+          errors: error.response?.data?.errors
+        }
+      } finally {
+        this.loading = false
+      }
     }
   },
   
   getters: {
     userName: (state) => state.user?.name || '',
     userEmail: (state) => state.user?.email || '',
-    userPhone: (state) => state.user?.phone || '',        // Добавлено
-    userCity: (state) => state.user?.city || '',          // Добавлено
-    userAddress: (state) => state.user?.address_line || '', // Добавлено
+    userPhone: (state) => state.user?.phone || '',
+    userCity: (state) => state.user?.city || '',
+    userAddress: (state) => state.user?.address_line || '',
+    userPostalCode: (state) => state.user?.postal_code || '',
     userRole: (state) => state.user?.role || '',
-    isAdmin: (state) => state.user?.role === 'admin'
+    userAvatar: (state) => state.user?.avatar || null,
+    isAdmin: (state) => state.user?.role === 'admin',
+    isManager: (state) => state.user?.role === 'manager' || state.user?.role === 'admin',
+    isYandexUser: (state) => !!state.user?.yandex_id
   }
 })
