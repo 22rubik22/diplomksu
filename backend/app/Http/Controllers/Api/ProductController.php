@@ -43,35 +43,36 @@ class ProductController extends Controller
             ->with(['categories', 'brand', 'primaryImage'])
             ->active();
         
-        // 1. Фильтр по поиску (название, описание)
+        // 1. Фильтр по поиску (название, описание, бренд, категории)
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhereHas('brand', function($query) use ($search) {
-                        $query->where('name', 'like', "%{$search}%")
-                              ->orWhere('bio', 'like', "%{$search}%");
+                    ->orWhereHas('brand', function($brandQuery) use ($search) {
+                        $brandQuery->where('name', 'like', "%{$search}%");
                     })
-                    ->orWhereHas('categories', function($query) use ($search) {
-                        $query->where('name', 'like', "%{$search}%");
+                    ->orWhereHas('categories', function($categoryQuery) use ($search) {
+                        $categoryQuery->where('name', 'like', "%{$search}%");
                     });
             });
         }
         
         // 2. Фильтр по цене
-        if ($request->has('price_from') && is_numeric($request->price_from)) {
+        if ($request->has('price_from') && is_numeric($request->price_from) && $request->price_from > 0) {
             $query->where('price', '>=', $request->price_from);
         }
         
-        if ($request->has('price_to') && is_numeric($request->price_to)) {
+        if ($request->has('price_to') && is_numeric($request->price_to) && $request->price_to > 0) {
             $query->where('price', '<=', $request->price_to);
         }
         
-        // 3. Фильтр по категории (поддерживает массив ID)
+        // 3. Фильтр по категории (поддерживает один или массив ID)
         if ($request->has('category_id') && !empty($request->category_id)) {
             $categoryIds = is_array($request->category_id) ? $request->category_id : [$request->category_id];
-            $query->byCategories($categoryIds);
+            $query->whereHas('categories', function($q) use ($categoryIds) {
+                $q->whereIn('categories.id', $categoryIds);
+            });
         }
         
         // 4. Фильтр по бренду
@@ -109,7 +110,7 @@ class ProductController extends Controller
         }
         
         // 9. Пагинация
-        $perPage = $request->get('per_page', 20);
+        $perPage = $request->get('per_page', 12);
         $perPage = min($perPage, 100);
         
         $products = $query->paginate($perPage);
@@ -123,7 +124,7 @@ class ProductController extends Controller
                 'price' => $product->price,
                 'old_price' => $product->old_price,
                 'discount_percent' => $product->discount_percent,
-                'cover_image' => $product->cover_image,
+                'cover_image' => $product->cover_image ? asset($product->cover_image) : null,
                 'is_in_stock' => $product->is_in_stock,
                 'is_active' => $product->is_active,
                 'color_list' => $product->color_list,
@@ -211,7 +212,7 @@ class ProductController extends Controller
                 'images' => $product->images->map(function ($image) {
                     return [
                         'id' => $image->id,
-                        'image_path' => $image->image_path,
+                        'image_path' => asset($image->image_path),
                         'is_primary' => $image->is_primary,
                         'sort_order' => $image->sort_order,
                     ];

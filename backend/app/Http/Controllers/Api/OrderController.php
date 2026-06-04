@@ -378,20 +378,38 @@ public function store(Request $request)
         }
         
         $perPage = $request->get('per_page', 20);
-        $status = $request->get('status');
+        $perPage = min($perPage, 100);
         
         $query = Order::with('user', 'items');
         
-        if ($status) {
-            $query->where('status', $status);
+        // Фильтр по статусу заказа
+        if ($request->has('status') && $request->status) {
+            $query->where('status', $request->status);
         }
         
-        if ($request->has('search')) {
+        // Фильтр по статусу оплаты
+        if ($request->has('payment_status') && $request->payment_status) {
+            $query->where('payment_status', $request->payment_status);
+        }
+        
+        // Фильтр по дате с
+        if ($request->has('date_from') && $request->date_from) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        
+        // Фильтр по дате по
+        if ($request->has('date_to') && $request->date_to) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+        
+        // Поиск
+        if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('order_number', 'like', "%{$search}%")
                   ->orWhere('customer_name', 'like', "%{$search}%")
-                  ->orWhere('customer_email', 'like', "%{$search}%");
+                  ->orWhere('customer_email', 'like', "%{$search}%")
+                  ->orWhere('customer_phone', 'like', "%{$search}%");
             });
         }
         
@@ -506,12 +524,15 @@ public function store(Request $request)
         }
         
         // Фильтр по дате
-        if ($request->has('date_from') && $request->date_from) {
-            $query->whereDate('created_at', '>=', $request->date_from);
+        $dateFrom = $request->get('date_from');
+        $dateTo = $request->get('date_to');
+        
+        if ($dateFrom) {
+            $query->whereDate('created_at', '>=', $dateFrom);
         }
         
-        if ($request->has('date_to') && $request->date_to) {
-            $query->whereDate('created_at', '<=', $request->date_to);
+        if ($dateTo) {
+            $query->whereDate('created_at', '<=', $dateTo);
         }
         
         // Сортировка
@@ -527,16 +548,59 @@ public function store(Request $request)
         
         $orders = $query->get();
         
+        // Рассчитываем выручку за выбранный период
+        $totalRevenue = $orders->sum('total_amount');
+        
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
         $exportDate = now()->format('d.m.Y H:i:s');
-        $sheet->setCellValue('A1', "Отчет по заказам за {$exportDate}");
-        $sheet->mergeCells('A1:R1');
+        $adminName = $user->name ?? 'Администратор';
         
-        $sheet->getStyle('A1')->getFont()->setSize(14)->setBold(true);
+        // Заголовок 1: Название отчета
+        $sheet->setCellValue('A1', "Отчет по заказам");
+        $sheet->mergeCells('A1:R1');
+        $sheet->getStyle('A1')->getFont()->setSize(16)->setBold(true);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         
+        // Заголовок 2: Информация о формировании
+        $sheet->setCellValue('A2', "Сформировано: {$adminName}");
+        $sheet->setCellValue('B2', "Дата формирования: {$exportDate}");
+        $sheet->mergeCells('A2:B2');
+        $sheet->getStyle('A2')->getFont()->setSize(10);
+        $sheet->getStyle('A2')->getFont()->setBold(true);
+        $sheet->getStyle('A2')->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()->setARGB('FFF5F5F5');
+        
+        // Заголовок 3: Период
+        $periodText = 'Все время';
+        if ($dateFrom && $dateTo) {
+            $periodText = "Период: с " . date('d.m.Y', strtotime($dateFrom)) . " по " . date('d.m.Y', strtotime($dateTo));
+        } elseif ($dateFrom) {
+            $periodText = "С: " . date('d.m.Y', strtotime($dateFrom));
+        } elseif ($dateTo) {
+            $periodText = "По: " . date('d.m.Y', strtotime($dateTo));
+        }
+        
+        $sheet->setCellValue('A3', $periodText);
+        $sheet->mergeCells('A3:B3');
+        $sheet->getStyle('A3')->getFont()->setSize(10);
+        $sheet->getStyle('A3')->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()->setARGB('FFF5F5F5');
+        
+        // Заголовок 4: Выручка
+        $sheet->setCellValue('A4', "Количество заказов: " . $orders->count());
+        $sheet->setCellValue('B4', "Выручка: " . number_format($totalRevenue, 2, ',', ' ') . " ₽");
+        $sheet->mergeCells('A4:B4');
+        $sheet->getStyle('A4')->getFont()->setSize(10);
+        $sheet->getStyle('A4')->getFont()->setBold(true);
+        $sheet->getStyle('A4')->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()->setARGB('FFE8F5E9');
+        
+        // Заголовки таблицы
         $headers = [
             'A' => 'ID',
             'B' => 'Номер заказа',
@@ -559,17 +623,17 @@ public function store(Request $request)
         ];
         
         foreach ($headers as $column => $header) {
-            $sheet->setCellValue($column . '2', $header);
+            $sheet->setCellValue($column . '6', $header);
         }
         
-        $headerStyle = $sheet->getStyle('A2:R2');
+        $headerStyle = $sheet->getStyle('A6:R6');
         $headerStyle->getFont()->setBold(true)->setSize(11);
         $headerStyle->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $headerStyle->getFill()
             ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()->setARGB('FFE0E0E0');
         
-        $row = 3;
+        $row = 7;
         foreach ($orders as $order) {
             $itemsList = [];
             $optionsList = [];
@@ -614,12 +678,34 @@ public function store(Request $request)
             $row++;
         }
         
+        // Итоговая строка с выручкой
+        if ($row > 7) {
+            $lastDataRow = $row - 1;
+            $sheet->setCellValue('A' . $row, 'ИТОГО ЗА ПЕРИОД:');
+            $sheet->mergeCells("A{$row}:H{$row}");
+            $sheet->setCellValue('I' . $row, $totalRevenue);
+            $sheet->mergeCells("J{$row}:R{$row}");
+            
+            $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(11);
+            $sheet->getStyle("I{$row}")->getFont()->setBold(true)->setSize(12);
+            $sheet->getStyle("I{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+            
+            $sheet->getStyle("A{$row}:R{$row}")->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setARGB('FFC8A87C');
+            
+            $sheet->getStyle("A{$row}:R{$row}")->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            
+            $row++;
+        }
+        
         foreach (range('A', 'R') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
         
         $lastRow = $row - 1;
-        if ($lastRow >= 2) {
+        if ($lastRow >= 6) {
             $styleArray = [
                 'borders' => [
                     'allBorders' => [
@@ -628,10 +714,10 @@ public function store(Request $request)
                     ],
                 ],
             ];
-            $sheet->getStyle('A2:R' . $lastRow)->applyFromArray($styleArray);
+            $sheet->getStyle('A6:R' . $lastRow)->applyFromArray($styleArray);
         }
         
-        $sheet->freezePane('A3');
+        $sheet->freezePane('A7');
         
         $fileName = 'orders-report-' . now()->format('Y-m-d_H-i-s') . '.xlsx';
         
@@ -681,25 +767,79 @@ public function store(Request $request)
             });
         }
         
-        if ($request->has('date_from') && $request->date_from) {
-            $query->whereDate('created_at', '>=', $request->date_from);
+        // Фильтр по дате
+        $dateFrom = $request->get('date_from');
+        $dateTo = $request->get('date_to');
+        
+        if ($dateFrom) {
+            $query->whereDate('created_at', '>=', $dateFrom);
         }
         
-        if ($request->has('date_to') && $request->date_to) {
-            $query->whereDate('created_at', '<=', $request->date_to);
+        if ($dateTo) {
+            $query->whereDate('created_at', '<=', $dateTo);
         }
         
-        $orders = $query->orderBy('created_at', 'desc')->get();
+        $orders = $query->get();
+        
+        // Рассчитываем выручку и количество заказов
+        $totalRevenue = $orders->sum('total_amount');
+        $totalOrders = $orders->count();
+        $totalItems = 0;
+        foreach ($orders as $order) {
+            $totalItems += $order->items->sum('quantity');
+        }
         
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
         $exportDate = now()->format('d.m.Y H:i:s');
-        $sheet->setCellValue('A1', "Детальный отчет по заказам за {$exportDate}");
+        $adminName = $user->name ?? 'Администратор';
+        
+        // Заголовок 1: Название отчета
+        $sheet->setCellValue('A1', "Детальный отчет по заказам");
         $sheet->mergeCells('A1:N1');
-        $sheet->getStyle('A1')->getFont()->setSize(14)->setBold(true);
+        $sheet->getStyle('A1')->getFont()->setSize(16)->setBold(true);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         
+        // Заголовок 2: Информация о формировании
+        $sheet->setCellValue('A2', "Сформировано: {$adminName}");
+        $sheet->setCellValue('B2', "Дата формирования: {$exportDate}");
+        $sheet->mergeCells('A2:B2');
+        $sheet->getStyle('A2')->getFont()->setSize(10);
+        $sheet->getStyle('A2')->getFont()->setBold(true);
+        $sheet->getStyle('A2')->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()->setARGB('FFF5F5F5');
+        
+        // Заголовок 3: Период и статистика
+        $periodText = 'Все время';
+        if ($dateFrom && $dateTo) {
+            $periodText = "Период: с " . date('d.m.Y', strtotime($dateFrom)) . " по " . date('d.m.Y', strtotime($dateTo));
+        } elseif ($dateFrom) {
+            $periodText = "С: " . date('d.m.Y', strtotime($dateFrom));
+        } elseif ($dateTo) {
+            $periodText = "По: " . date('d.m.Y', strtotime($dateTo));
+        }
+        
+        $sheet->setCellValue('A3', $periodText);
+        $sheet->mergeCells('A3:B3');
+        $sheet->getStyle('A3')->getFont()->setSize(10);
+        $sheet->getStyle('A3')->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()->setARGB('FFF5F5F5');
+        
+        // Заголовок 4: Статистика
+        $sheet->setCellValue('A4', "Заказов: {$totalOrders}");
+        $sheet->setCellValue('B4', "Товаров: {$totalItems}");
+        $sheet->setCellValue('C4', "Выручка: " . number_format($totalRevenue, 2, ',', ' ') . " ₽");
+        $sheet->mergeCells('A4:C4');
+        $sheet->getStyle('A4')->getFont()->setSize(10);
+        $sheet->getStyle('A4')->getFont()->setBold(true);
+        $sheet->getStyle('A4')->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()->setARGB('FFE8F5E9');
+        
+        // Заголовки таблицы
         $headers = [
             'A' => 'ID заказа',
             'B' => 'Номер заказа',
@@ -718,17 +858,17 @@ public function store(Request $request)
         ];
         
         foreach ($headers as $column => $header) {
-            $sheet->setCellValue($column . '2', $header);
+            $sheet->setCellValue($column . '6', $header);
         }
         
-        $headerStyle = $sheet->getStyle('A2:N2');
+        $headerStyle = $sheet->getStyle('A6:N6');
         $headerStyle->getFont()->setBold(true);
         $headerStyle->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $headerStyle->getFill()
             ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()->setARGB('FFE0E0E0');
         
-        $row = 3;
+        $row = 7;
         foreach ($orders as $order) {
             if ($order->items->isEmpty()) {
                 $sheet->setCellValue('A' . $row, $order->id);
@@ -771,12 +911,36 @@ public function store(Request $request)
             }
         }
         
+        // Итоговая строка с выручкой
+        if ($row > 7) {
+            $lastDataRow = $row - 1;
+            $sheet->setCellValue('A' . $row, 'ИТОГО ЗА ПЕРИОД:');
+            $sheet->mergeCells("A{$row}:K{$row}");
+            $sheet->setCellValue('L' . $row, $totalItems);
+            $sheet->setCellValue('M' . $row, $totalRevenue);
+            $sheet->mergeCells("N{$row}:N{$row}");
+            
+            $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(11);
+            $sheet->getStyle("L{$row}")->getFont()->setBold(true)->setSize(11);
+            $sheet->getStyle("M{$row}")->getFont()->setBold(true)->setSize(12);
+            $sheet->getStyle("M{$row}")->getNumberFormat()->setFormatCode('#,##0.00');
+            
+            $sheet->getStyle("A{$row}:N{$row}")->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setARGB('FFC8A87C');
+            
+            $sheet->getStyle("A{$row}:N{$row}")->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            
+            $row++;
+        }
+        
         foreach (range('A', 'N') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
         
         $lastRow = $row - 1;
-        if ($lastRow >= 2) {
+        if ($lastRow >= 6) {
             $styleArray = [
                 'borders' => [
                     'allBorders' => [
@@ -785,10 +949,10 @@ public function store(Request $request)
                     ],
                 ],
             ];
-            $sheet->getStyle('A2:N' . $lastRow)->applyFromArray($styleArray);
+            $sheet->getStyle('A6:N' . $lastRow)->applyFromArray($styleArray);
         }
         
-        $sheet->freezePane('A3');
+        $sheet->freezePane('A7');
         
         $fileName = 'orders-detailed-' . now()->format('Y-m-d_H-i-s') . '.xlsx';
         

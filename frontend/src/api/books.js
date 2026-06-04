@@ -102,5 +102,9 @@ export const bookImageApi = {
   // Обновить порядок сортировки
   reorderImages(bookId, images) {
     return api.post(`/products/${bookId}/images/reorder`, { images })
+  },
+
+  getCategories() {
+    return axios.get('/api/categories')
   }
 }

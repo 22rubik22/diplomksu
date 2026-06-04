@@ -10,18 +10,49 @@
     </div>
 
     <div class="flex flex-col lg:flex-row gap-8 md:gap-12">
-      <!-- Изображение товара -->
+      <!-- Галерея изображений товара -->
       <div class="lg:w-1/2">
-        <div class="bg-[#f8f8f8] flex items-center justify-center p-8 min-h-[400px] sm:min-h-[500px]">
+        <!-- Основное изображение -->
+        <div class="bg-[#f8f8f8] flex items-center justify-center p-8 min-h-[400px] sm:min-h-[500px] mb-4">
           <img 
-            v-if="hasValidCover"
-            :src="book.cover_image" 
+            v-if="currentImage"
+            :src="currentImage" 
             :alt="book.title"
-            class="w-full max-h-[500px] object-contain"
-            @error="onImageError"
+            class="w-full max-h-[500px] object-contain transition-opacity duration-300"
+            @error="onMainImageError"
           >
           <div v-else class="text-center">
             <i class="fas fa-shopping-bag text-6xl text-black/10"></i>
+          </div>
+        </div>
+        
+        <!-- Миниатюры изображений -->
+        <div v-if="hasImages" class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+          <button
+            v-for="(image, index) in validImages"
+            :key="image.id || index"
+            @click="currentImageIndex = index"
+            class="flex-shrink-0 w-20 h-20 border-2 transition-all relative"
+            :class="currentImageIndex === index ? 'border-black ring-2 ring-black/10' : 'border-black/10 hover:border-black/30'"
+          >
+            <img 
+              :src="image.image_path" 
+              :alt="`${book.title} ${index + 1}`"
+              class="w-full h-full object-cover"
+              @error="onThumbnailError(index)"
+            >
+          </button>
+        </div>
+        
+        <!-- Запасной вариант - если нет images, используем cover_image -->
+        <div v-else-if="hasValidCover" class="flex gap-3">
+          <div class="flex-shrink-0 w-20 h-20 border-2 border-black">
+            <img 
+              :src="book.cover_image" 
+              :alt="book.title"
+              class="w-full h-full object-cover"
+              @error="onImageError"
+            >
           </div>
         </div>
       </div>
@@ -453,6 +484,11 @@ const showToast = ref(false)
 const toastMessage = ref('')
 const toastType = ref('success')
 
+// Галерея изображений
+const currentImageIndex = ref(0)
+const currentImage = ref(null)
+const thumbnailErrors = ref([])
+
 const ageConfirmed = ref(false)
 const showAgeModal = ref(false)
 
@@ -469,6 +505,36 @@ const reviewForm = ref({ rating: 0, title: '', comment: '' })
 const hasValidCover = computed(() => {
   return book.value?.cover_image && !imageLoadError.value
 })
+
+// Проверка наличия изображений
+const hasImages = computed(() => {
+  return book.value?.images && book.value.images.length > 0
+})
+
+// Получаем валидные изображения (без ошибок загрузки)
+const validImages = computed(() => {
+  if (!hasImages.value) return []
+  return book.value.images.filter((_, idx) => !thumbnailErrors.value[idx])
+})
+
+// Основное изображение галереи
+const mainImage = computed(() => {
+  if (!book.value) return null
+  
+  // Если есть изображения, берем текущее из галереи
+  if (hasImages.value && validImages.value.length > 0) {
+    const image = validImages.value[currentImageIndex.value % validImages.value.length]
+    return image?.image_path || null
+  }
+  
+  // Иначе используем cover_image
+  return hasValidCover.value ? book.value.cover_image : null
+})
+
+// Синхронизация currentImage с mainImage
+watch(mainImage, (newVal) => {
+  currentImage.value = newVal
+}, { immediate: true })
 
 const isInStock = computed(() => {
   if (!book.value) return false
@@ -579,8 +645,31 @@ const formatDate = (date) => {
   return new Date(date).toLocaleDateString('ru-RU')
 }
 
+// Обработка ошибок изображений
 const onImageError = () => {
   imageLoadError.value = true
+}
+
+const onMainImageError = () => {
+  // Если ошибка на главном изображении и есть другие изображения, пробуем следующее
+  if (hasImages.value && validImages.value.length > 1) {
+    const nextIndex = (currentImageIndex.value + 1) % validImages.value.length
+    currentImageIndex.value = nextIndex
+  } else {
+    imageLoadError.value = true
+  }
+}
+
+const onThumbnailError = (index) => {
+  // Помечаем миниатюру как ошибочную
+  thumbnailErrors.value[index] = true
+  // Если ошибка на текущей миниатюре, переключаем на следующую рабочую
+  if (index === currentImageIndex.value) {
+    const validIndex = book.value.images.findIndex((_, idx) => !thumbnailErrors.value[idx])
+    if (validIndex !== -1) {
+      currentImageIndex.value = validIndex
+    }
+  }
 }
 
 const incrementQuantity = () => {
@@ -637,6 +726,10 @@ const loadBook = async () => {
     const response = await bookApi.getBookBySlug(slug)
     if (response.data.success) {
       book.value = response.data.data
+      
+      // Сбрасываем галерею
+      currentImageIndex.value = 0
+      thumbnailErrors.value = new Array(book.value.images?.length || 0).fill(false)
       
       // Устанавливаем значения по умолчанию для цвета и размера
       if (book.value.color_list && book.value.color_list.length > 0) {
@@ -889,5 +982,15 @@ watch(() => favoritesStore.favoriteBookIds, () => checkFavorite(), { deep: true 
 .toast-leave-to {
   opacity: 0;
   transform: translateX(100%);
+}
+
+/* Скрытие скроллбара для миниатюр */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>

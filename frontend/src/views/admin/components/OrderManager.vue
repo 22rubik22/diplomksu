@@ -11,11 +11,14 @@
           <p class="text-xs text-[#8b7355] mt-0.5">Просмотр и изменение статусов заказов</p>
         </div>
       </div>
-      <div class="flex gap-3">
+      <div class="flex gap-3 items-center">
+       
+        
+        <!-- Кнопки экспорта -->
         <button 
           @click="exportOrders"
           :disabled="exportLoading"
-          class="px-4 py-2 rounded-xl border border-[#e8e0d8] text-[#8b7355] text-sm hover:bg-[#faf8f5] transition-all flex items-center gap-2 disabled:opacity-50"
+          class="px-4 py-2.5 rounded-xl border border-[#e8e0d8] text-[#8b7355] text-sm hover:bg-[#faf8f5] transition-all flex items-center gap-2 disabled:opacity-50"
         >
           <i v-if="!exportLoading" class="fas fa-file-excel text-sm"></i>
           <i v-else class="fas fa-spinner fa-spin text-sm"></i>
@@ -25,7 +28,7 @@
         <button 
           @click="exportDetailedOrders"
           :disabled="exportDetailedLoading"
-          class="px-4 py-2 rounded-xl bg-[#c8a87c] text-white text-sm hover:bg-[#b89a6e] transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+          class="px-4 py-2.5 rounded-xl bg-[#c8a87c] text-white text-sm hover:bg-[#b89a6e] transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
         >
           <i v-if="!exportDetailedLoading" class="fas fa-chart-line text-sm"></i>
           <i v-else class="fas fa-spinner fa-spin text-sm"></i>
@@ -275,7 +278,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { orderApi } from '@/api/orders'
 import { useToast } from '@/composables/useToast'
 
@@ -302,6 +305,47 @@ const pagination = ref({
   last_page: 1,
   per_page: 20,
   total: 0
+})
+
+// Вычисляемый период фильтрации для отображения
+const filteredPeriod = computed(() => {
+  if (filters.value.date_from && filters.value.date_to) {
+    const from = new Date(filters.value.date_from).toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+    const to = new Date(filters.value.date_to).toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+    return `${from} – ${to}`
+  } else if (filters.value.date_from) {
+    return 'с ' + new Date(filters.value.date_from).toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+  } else if (filters.value.date_to) {
+    return 'по ' + new Date(filters.value.date_to).toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+  }
+  return 'все время'
+})
+
+// Количество заказов в текущей выборке
+const filteredOrdersCount = computed(() => {
+  return pagination.value.total
+})
+
+// Вычисляем выручку за выбранный период на основе загруженных данных
+const filteredRevenue = computed(() => {
+  if (orders.value.length === 0) return 0
+  return orders.value.reduce((sum, order) => sum + (order.total_amount || 0), 0)
 })
 
 const formatPrice = (price) => {
@@ -359,9 +403,15 @@ const loadOrders = async (page = 1) => {
   loading.value = true
   try {
     const params = { page, per_page: 20, ...filters.value }
+    
+    // Удаляем пустые параметры
     Object.keys(params).forEach(key => {
-      if (params[key] === null || params[key] === '' || params[key] === undefined) delete params[key]
+      if (params[key] === null || params[key] === '' || params[key] === undefined) {
+        delete params[key]
+      }
     })
+    
+    console.log('Загрузка заказов с параметрами:', params) // Для отладки
     
     const response = await orderApi.getAllOrders(params)
     if (response.data.success) {
@@ -372,9 +422,10 @@ const loadOrders = async (page = 1) => {
         per_page: response.data.data.per_page,
         total: response.data.data.total
       }
+      console.log('Получено заказов:', orders.value.length) // Для отладки
     }
   } catch (err) {
-    console.error(err)
+    console.error('Ошибка при загрузке заказов:', err)
     error('Ошибка при загрузке заказов')
   } finally {
     loading.value = false
@@ -415,6 +466,7 @@ const exportOrders = async () => {
     const params = {}
     if (filters.value.search) params.search = filters.value.search
     if (filters.value.status) params.status = filters.value.status
+    if (filters.value.payment_status) params.payment_status = filters.value.payment_status
     if (filters.value.date_from) params.date_from = filters.value.date_from
     if (filters.value.date_to) params.date_to = filters.value.date_to
     
@@ -430,6 +482,7 @@ const exportOrders = async () => {
     window.URL.revokeObjectURL(url)
     success('Экспорт выполнен')
   } catch (err) {
+    console.error('Ошибка при экспорте:', err)
     error('Ошибка при экспорте')
   } finally {
     exportLoading.value = false
@@ -442,6 +495,7 @@ const exportDetailedOrders = async () => {
     const params = {}
     if (filters.value.search) params.search = filters.value.search
     if (filters.value.status) params.status = filters.value.status
+    if (filters.value.payment_status) params.payment_status = filters.value.payment_status
     if (filters.value.date_from) params.date_from = filters.value.date_from
     if (filters.value.date_to) params.date_to = filters.value.date_to
     
@@ -457,6 +511,7 @@ const exportDetailedOrders = async () => {
     window.URL.revokeObjectURL(url)
     success('Детальный отчёт экспортирован')
   } catch (err) {
+    console.error('Ошибка при экспорте:', err)
     error('Ошибка при экспорте')
   } finally {
     exportDetailedLoading.value = false

@@ -52,25 +52,13 @@
               Поиск: {{ filters.search }}
               <button @click="filters.search = ''; applyFilters()" class="ml-1">✕</button>
             </span>
-            <span v-if="filters.genre_id" class="inline-flex items-center gap-1.5 text-[10px] bg-black/5 px-2 py-1">
-              {{ getGenreName(filters.genre_id) }}
-              <button @click="filters.genre_id = ''; applyFilters()" class="ml-1">✕</button>
+            <span v-if="filters.category_id" class="inline-flex items-center gap-1.5 text-[10px] bg-black/5 px-2 py-1">
+              {{ getCategoryName(filters.category_id) }}
+              <button @click="filters.category_id = ''; applyFilters()" class="ml-1">✕</button>
             </span>
             <span v-if="filters.price_from || filters.price_to" class="inline-flex items-center gap-1.5 text-[10px] bg-black/5 px-2 py-1">
               Цена: {{ filters.price_from || '0' }} - {{ filters.price_to || '∞' }} ₽
               <button @click="filters.price_from = ''; filters.price_to = ''; applyFilters()" class="ml-1">✕</button>
-            </span>
-            <span v-if="filters.featured" class="inline-flex items-center gap-1.5 text-[10px] bg-black/5 px-2 py-1">
-              Рекомендуемые
-              <button @click="filters.featured = false; applyFilters()" class="ml-1">✕</button>
-            </span>
-            <span v-if="filters.new" class="inline-flex items-center gap-1.5 text-[10px] bg-black/5 px-2 py-1">
-              Новинки
-              <button @click="filters.new = false; applyFilters()" class="ml-1">✕</button>
-            </span>
-            <span v-if="filters.bestseller" class="inline-flex items-center gap-1.5 text-[10px] bg-black/5 px-2 py-1">
-              Хиты
-              <button @click="filters.bestseller = false; applyFilters()" class="ml-1">✕</button>
             </span>
             <span v-if="filters.in_stock" class="inline-flex items-center gap-1.5 text-[10px] bg-black/5 px-2 py-1">
               В наличии
@@ -79,18 +67,18 @@
           </div>
 
           <!-- Сетка фильтров -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <!-- Категория/Жанр -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Категория -->
             <div>
               <label class="block text-[10px] tracking-[0.2em] uppercase text-black/40 mb-2 font-light">Категория</label>
               <select 
-                v-model="filters.genre_id"
+                v-model="filters.category_id"
                 class="w-full px-0 py-2 text-sm border-b border-black/10 bg-transparent focus:outline-none focus:border-black/30 transition-all"
                 @change="applyFilters"
               >
                 <option value="">Все категории</option>
-                <option v-for="genre in genres" :key="genre.id" :value="genre.id">
-                  {{ genre.name }}
+                <option v-for="category in categories" :key="category.id" :value="category.id">
+                  {{ category.name }}
                 </option>
               </select>
             </div>
@@ -116,22 +104,10 @@
               </div>
             </div>
 
-            <!-- Статусы -->
+            <!-- Дополнительные опции -->
             <div>
-              <label class="block text-[10px] tracking-[0.2em] uppercase text-black/40 mb-2 font-light">Статус</label>
+              <label class="block text-[10px] tracking-[0.2em] uppercase text-black/40 mb-2 font-light">Опции</label>
               <div class="space-y-2">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" v-model="filters.featured" class="w-3 h-3 rounded border-black/20" @change="applyFilters">
-                  <span class="text-sm font-light">Рекомендуемые</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" v-model="filters.new" class="w-3 h-3 rounded border-black/20" @change="applyFilters">
-                  <span class="text-sm font-light">Новинки</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" v-model="filters.bestseller" class="w-3 h-3 rounded border-black/20" @change="applyFilters">
-                  <span class="text-sm font-light">Хиты продаж</span>
-                </label>
                 <label class="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" v-model="filters.in_stock" class="w-3 h-3 rounded border-black/20" @change="applyFilters">
                   <span class="text-sm font-light">Только в наличии</span>
@@ -245,10 +221,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import BookCard from '@/components/ui/BookCard.vue'
 import { bookApi } from '@/api/books'
+import { genreApi } from '@/api/genres'
 import { useCartStore } from '@/stores/cart'
 
 const router = useRouter()
@@ -258,7 +235,7 @@ const cartStore = useCartStore()
 // Состояния
 const loading = ref(false)
 const books = ref([])
-const genres = ref([])
+const categories = ref([])
 const pagination = reactive({
   current_page: 1,
   last_page: 1,
@@ -271,12 +248,9 @@ const perPage = ref(12)
 // Фильтры
 const filters = reactive({
   search: '',
-  genre_id: '',
+  category_id: '',
   price_from: '',
   price_to: '',
-  featured: false,
-  new: false,
-  bestseller: false,
   in_stock: false,
   sort_by: 'created_at'
 })
@@ -287,12 +261,9 @@ const showAdvancedFilters = ref(false)
 const activeFiltersCount = computed(() => {
   let count = 0
   if (filters.search) count++
-  if (filters.genre_id) count++
+  if (filters.category_id) count++
   if (filters.price_from) count++
   if (filters.price_to) count++
-  if (filters.featured) count++
-  if (filters.new) count++
-  if (filters.bestseller) count++
   if (filters.in_stock) count++
   if (filters.sort_by !== 'created_at') count++
   return count
@@ -325,23 +296,34 @@ const displayedPages = computed(() => {
 })
 
 // Получение названия категории
-const getGenreName = (id) => {
-  const genre = genres.value.find(g => g.id === parseInt(id))
-  return genre ? genre.name : ''
+const getCategoryName = (id) => {
+  const category = categories.value.find(c => c.id === parseInt(id))
+  return category ? category.name : ''
 }
 
 // Загрузка категорий
-const loadGenres = async () => {
+const loadCategories = async () => {
   try {
-    const response = await fetch('/api/genres')
-    const data = await response.json()
-    if (data.success) {
-      genres.value = data.data
+    const response = await genreApi.getGenreTree()
+    if (response.data.success) {
+      // Преобразуем дерево в плоский список для фильтра
+      const flattenCategories = []
+      const flatten = (items) => {
+        items.forEach(item => {
+          flattenCategories.push({ id: item.id, name: item.name })
+          if (item.children) {
+            flatten(item.children)
+          }
+        })
+      }
+      flatten(response.data.data)
+      categories.value = flattenCategories
     }
   } catch (error) {
     console.error('Ошибка загрузки категорий:', error)
   }
 }
+
 
 // Загрузка товаров
 const loadBooks = async () => {
@@ -356,13 +338,12 @@ const loadBooks = async () => {
     }
     
     if (filters.search) params.search = filters.search
-    if (filters.genre_id) params.genre_id = filters.genre_id
+    if (filters.category_id) params.category_id = filters.category_id
     if (filters.price_from) params.price_from = filters.price_from
     if (filters.price_to) params.price_to = filters.price_to
-    if (filters.featured) params.featured = 1
-    if (filters.new) params.new = 1
-    if (filters.bestseller) params.bestseller = 1
     if (filters.in_stock) params.in_stock = 1
+    
+    console.log('Загрузка товаров с параметрами:', params) // Для отладки
     
     const response = await bookApi.getBooks(params)
     
@@ -372,6 +353,7 @@ const loadBooks = async () => {
       pagination.last_page = response.data.data.last_page
       pagination.per_page = response.data.data.per_page
       pagination.total = response.data.data.total
+      console.log('Получено товаров:', books.value.length) // Для отладки
     }
   } catch (error) {
     console.error('Ошибка загрузки товаров:', error)
@@ -411,12 +393,9 @@ const applyFilters = () => {
 
 const resetFilters = () => {
   filters.search = ''
-  filters.genre_id = ''
+  filters.category_id = ''
   filters.price_from = ''
   filters.price_to = ''
-  filters.featured = false
-  filters.new = false
-  filters.bestseller = false
   filters.in_stock = false
   filters.sort_by = 'created_at'
   pagination.current_page = 1
@@ -453,12 +432,9 @@ const updateUrlParams = () => {
   const query = {}
   
   if (filters.search) query.search = filters.search
-  if (filters.genre_id) query.genre = filters.genre_id
+  if (filters.category_id) query.category = filters.category_id
   if (filters.price_from) query.price_from = filters.price_from
   if (filters.price_to) query.price_to = filters.price_to
-  if (filters.featured) query.featured = '1'
-  if (filters.new) query.new = '1'
-  if (filters.bestseller) query.bestseller = '1'
   if (filters.in_stock) query.in_stock = '1'
   if (filters.sort_by !== 'created_at') query.sort = filters.sort_by
   
@@ -469,23 +445,16 @@ const loadFiltersFromUrl = () => {
   const query = route.query
   
   if (query.search) filters.search = query.search
-  if (query.genre) filters.genre_id = query.genre
+  if (query.category) filters.category_id = query.category
   if (query.price_from) filters.price_from = query.price_from
   if (query.price_to) filters.price_to = query.price_to
-  if (query.featured) filters.featured = true
-  if (query.new) filters.new = true
-  if (query.bestseller) filters.bestseller = true
   if (query.in_stock) filters.in_stock = true
   if (query.sort) filters.sort_by = query.sort
 }
 
-watch(perPage, () => {
-  changePerPage()
-})
-
 onMounted(() => {
   loadFiltersFromUrl()
-  loadGenres()
+  loadCategories()
   loadBooks()
 })
 </script>

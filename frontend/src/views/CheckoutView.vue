@@ -46,11 +46,18 @@
                   
                   <div>
                     <label class="block text-xs text-[#8b7355] mb-1.5">Время доставки</label>
-                    <select class="w-full px-4 py-2.5 text-sm border border-[#e8e0d8] rounded-xl bg-white focus:outline-none focus:border-[#c8a87c]">
-                      <option>10:00 - 14:00</option>
-                      <option>14:00 - 18:00</option>
-                      <option>18:00 - 22:00</option>
+                    <select 
+                      v-model="form.deliveryTime"
+                      class="w-full px-4 py-2.5 text-sm border border-[#e8e0d8] rounded-xl bg-white focus:outline-none focus:border-[#c8a87c] focus:ring-1 focus:ring-[#c8a87c] transition-all"
+                    >
+                      <option value="" disabled>Выберите время</option>
+                      <option v-for="time in deliveryTimeSlots" :key="time" :value="time">
+                        {{ time }}
+                      </option>
                     </select>
+                    <p v-if="form.deliveryTime && !isTimeValid" class="text-xs text-red-500 mt-1">
+                      Выберите доступное время доставки
+                    </p>
                   </div>
                 </div>
                 
@@ -144,22 +151,28 @@
                   class="w-4 h-4 rounded border-[#e8e0d8] text-[#c8a87c]"
                 >
                 <span class="text-sm text-[#2c2c2c]">Использовать бонусы</span>
-                <span class="text-xs text-[#8b7355]">(до {{ formatPrice(maxBonusToUse) }})</span>
+                <span class="text-xs text-[#8b7355]">(доступно {{ formatPrice(bonusInfo.current_bonus) }})</span>
               </label>
               
               <div v-if="useBonus" class="mt-4">
                 <div class="flex items-center gap-4">
                   <input 
-                    type="range"
-                    v-model="bonusToUse"
-                    :min="0"
-                    :max="maxBonusToUse"
-                    step="1"
-                    class="flex-1 h-1.5 bg-[#e8e0d8] rounded-full appearance-none cursor-pointer"
-                    :style="{ background: `linear-gradient(to right, #c8a87c 0%, #c8a87c ${(bonusToUse / maxBonusToUse) * 100}%, #e8e0d8 ${(bonusToUse / maxBonusToUse) * 100}%, #e8e0d8 100%)` }"
+                    type="number"
+                    v-model.number="bonusToUse"
+                    @input="onBonusInputChange"
+                    min="0"
+                    :max="bonusInfo.current_bonus"
+                    class="flex-1 px-4 py-2.5 text-sm border border-[#e8e0d8] rounded-xl bg-white focus:outline-none focus:border-[#c8a87c] focus:ring-1 focus:ring-[#c8a87c] transition-all"
+                    placeholder="Сумма бонусов"
                   >
-                  <span class="text-sm font-medium text-[#c8a87c] min-w-[70px]">{{ formatPrice(bonusToUse) }} ₽</span>
+                  <span class="text-sm text-[#8b7355]">бонусов = {{ formatPrice(bonusToUse) }} ₽</span>
                 </div>
+                <p v-if="bonusToUse > bonusInfo.current_bonus" class="text-xs text-red-500 mt-1">
+                  Недостаточно бонусов на счёте
+                </p>
+                <p v-if="bonusToUse > totalBeforeBonus" class="text-xs text-red-500 mt-1">
+                  Сумма бонусов не может превышать стоимость заказа
+                </p>
               </div>
             </div>
           </div>
@@ -322,9 +335,19 @@ const bonusToUse = ref(0)
 
 const minDeliveryDate = new Date().toISOString().split('T')[0]
 
+// Генерируем слоты времени с 10:00 до 20:00 с шагом 1 час
+const deliveryTimeSlots = computed(() => {
+  const slots = []
+  for (let hour = 10; hour <= 20; hour++) {
+    slots.push(`${hour.toString().padStart(2, '0')}:00`)
+  }
+  return slots
+})
+
 const form = ref({
   address: '',
   deliveryDate: null,
+  deliveryTime: null,
   comment: '',
   deliveryMethod: null,
   paymentMethod: null
@@ -346,12 +369,31 @@ const inactiveItems = computed(() => cartStore.items.filter(item => item.is_acti
 const hasActiveItems = computed(() => activeItems.value.length > 0)
 const hasInactiveItems = computed(() => inactiveItems.value.length > 0)
 
+const totalBeforeBonus = computed(() => {
+  return cartStore.total + deliveryPrice.value
+})
+
 const canSubmitOrder = computed(() => {
   return hasActiveItems.value &&
          form.value.deliveryMethod && 
          form.value.paymentMethod && 
          form.value.address &&
-         !submitting.value
+         form.value.deliveryTime &&
+         isTimeValid.value &&
+         !submitting.value &&
+         isBonusValid.value
+})
+
+const isTimeValid = computed(() => {
+  if (!form.value.deliveryTime) return true
+  return deliveryTimeSlots.value.includes(form.value.deliveryTime)
+})
+
+const isBonusValid = computed(() => {
+  if (!useBonus.value || bonusToUse.value <= 0) return true
+  if (bonusToUse.value > bonusInfo.value?.current_bonus) return false
+  if (bonusToUse.value > totalBeforeBonus.value) return false
+  return true
 })
 
 const deliveryPrice = computed(() => {
@@ -359,13 +401,6 @@ const deliveryPrice = computed(() => {
 })
 
 const bonusToEarn = computed(() => Math.floor(cartStore.total * 0.05))
-
-const maxBonusToUse = computed(() => {
-  if (!bonusInfo.value) return 0
-  const totalWithDelivery = cartStore.total + deliveryPrice.value
-  const maxByPercent = Math.floor(totalWithDelivery * 0.5)
-  return Math.min(bonusInfo.value.current_bonus, maxByPercent)
-})
 
 const totalToPay = computed(() => {
   let total = cartStore.total + deliveryPrice.value
@@ -446,21 +481,24 @@ const loadBonusInfo = async () => {
 
 const onUseBonusChange = (event) => {
   if (event.target.checked) {
-    bonusToUse.value = maxBonusToUse.value
+    const maxAvailable = Math.min(bonusInfo.value?.current_bonus || 0, totalBeforeBonus.value)
+    bonusToUse.value = maxAvailable
   } else {
     bonusToUse.value = 0
   }
 }
 
-watch([maxBonusToUse, useBonus], () => {
-  if (useBonus.value && bonusToUse.value > maxBonusToUse.value) {
-    bonusToUse.value = maxBonusToUse.value
-  }
-  if (maxBonusToUse.value === 0 && useBonus.value) {
-    useBonus.value = false
+const onBonusInputChange = () => {
+  if (bonusToUse.value < 0) {
     bonusToUse.value = 0
   }
-})
+  if (bonusToUse.value > bonusInfo.value?.current_bonus) {
+    bonusToUse.value = bonusInfo.value.current_bonus
+  }
+  if (bonusToUse.value > totalBeforeBonus.value) {
+    bonusToUse.value = totalBeforeBonus.value
+  }
+}
 
 const handleCoordinates = (coords) => {
   selectedCoordinates.value = coords
@@ -504,11 +542,12 @@ const createOrder = async () => {
     delivery_method: form.value.deliveryMethod,
     delivery_address: form.value.address,
     delivery_date: form.value.deliveryDate,
+    delivery_time: form.value.deliveryTime,
     payment_method: form.value.paymentMethod,
     comment: form.value.comment,
     coordinates: selectedCoordinates.value,
     use_bonus: useBonus.value,
-    bonus_amount: bonusToUse.value, // ДОБАВИТЬ - передаем конкретную сумму
+    bonus_amount: bonusToUse.value,
     items: activeItems.value.map(item => ({
       cart_item_id: item.id,
       product_id: item.book_id,
@@ -571,6 +610,18 @@ const submitOrder = async () => {
     error('Введите адрес доставки')
     return
   }
+  if (!form.value.deliveryTime) {
+    error('Выберите время доставки')
+    return
+  }
+  if (!isTimeValid.value) {
+    error('Выберите доступное время доставки')
+    return
+  }
+  if (!isBonusValid.value) {
+    error('Некорректная сумма бонусов')
+    return
+  }
 
   submitting.value = true
   
@@ -595,7 +646,6 @@ const formatPrice = (price) => {
   return new Intl.NumberFormat('ru-RU').format(price)
 }
 
-// ИСПРАВЛЕНА ФУНКЦИЯ ЗАГРУЗКИ АДРЕСА - объединяем city и address_line
 const loadUserAddress = () => {
   const city = authStore.userCity
   const addressLine = authStore.userAddress
