@@ -43,18 +43,19 @@
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Название</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Slug</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Товаров</th>
+            <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Страна</th>
             <th class="text-left p-4 text-[#8b7355] font-medium text-xs uppercase tracking-wider">Действия</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading && brands.length === 0">
-            <td colspan="7" class="p-8 text-center">
+            <td colspan="6" class="p-8 text-center">
               <div class="w-6 h-6 border-2 border-[#c8a87c] border-t-transparent rounded-full animate-spin mx-auto"></div>
               <p class="mt-3 text-[#8b7355] text-sm">Загрузка...</p>
             </td>
           </tr>
           <tr v-else-if="brands.length === 0">
-            <td colspan="7" class="p-8 text-center">
+            <td colspan="6" class="p-8 text-center">
               <i class="fas fa-tags text-3xl text-[#e8e0d8] mb-2"></i>
               <p class="text-[#8b7355] text-sm">Бренды не найдены</p>
             </td>
@@ -79,6 +80,9 @@
               <span class="px-2 py-1 rounded-full bg-[#faf8f5] text-[#8b7355] text-xs">
                 {{ brand.products_count || 0 }}
               </span>
+            </td>
+            <td class="p-4 text-[#8b7355] text-sm">
+              {{ brand.country || '-' }}
             </td>
             <td class="p-4">
               <div class="flex gap-2">
@@ -219,7 +223,7 @@
               <div>
                 <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">Год основания</label>
                 <input 
-                  v-model.number="form.founded_year"
+                  v-model.number="form.year"
                   type="number"
                   class="w-full px-4 py-2.5 text-sm border border-[#e8e0d8] rounded-xl bg-white focus:outline-none focus:border-[#c8a87c] transition-all"
                   placeholder="1921"
@@ -233,7 +237,7 @@
             <div>
               <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">Веб-сайт</label>
               <input 
-                v-model="form.website"
+                v-model="form.url_web"
                 type="url"
                 class="w-full px-4 py-2.5 text-sm border border-[#e8e0d8] rounded-xl bg-white focus:outline-none focus:border-[#c8a87c] transition-all"
                 placeholder="https://www.gucci.com"
@@ -244,7 +248,7 @@
             <div>
               <label class="block text-sm text-[#2c2c2c] font-medium mb-1.5">Описание бренда</label>
               <textarea 
-                v-model="form.bio"
+                v-model="form.desc"
                 rows="4"
                 class="w-full px-4 py-2.5 text-sm border border-[#e8e0d8] rounded-xl bg-white focus:outline-none focus:border-[#c8a87c] transition-all resize-none"
                 placeholder="История бренда, философия, особенности..."
@@ -296,10 +300,10 @@ const photoPreview = ref('')
 const form = ref({
   name: '',
   slug: '',
-  bio: '',
+  desc: '',
   country: '',
-  founded_year: null,
-  website: '',
+  year: null,
+  url_web: '',
   photo: null
 })
 
@@ -387,16 +391,16 @@ const openModal = (brand = null) => {
     form.value = {
       name: brand.name,
       slug: brand.slug,
-      bio: brand.bio || '',
+      desc: brand.desc || '',
       country: brand.country || '',
-      founded_year: brand.founded_year || null,
-      website: brand.website || '',
+      year: brand.year || null,
+      url_web: brand.url_web || '',
       photo: brand.photo
     }
     if (brand.photo) photoPreview.value = getFullImageUrl(brand.photo)
   } else {
     form.value = {
-      name: '', slug: '', bio: '', country: '', founded_year: null, website: '', photo: null
+      name: '', slug: '', desc: '', country: '', year: null, url_web: '', photo: null
     }
   }
   showModal.value = true
@@ -408,7 +412,7 @@ const closeModal = () => {
   errors.value = {}
   photoFile.value = null
   photoPreview.value = ''
-  form.value = { name: '', slug: '', bio: '', country: '', founded_year: null, website: '', photo: null }
+  form.value = { name: '', slug: '', desc: '', country: '', year: null, url_web: '', photo: null }
 }
 
 const saveBrand = async () => {
@@ -419,10 +423,10 @@ const saveBrand = async () => {
     const formData = new FormData()
     formData.append('name', form.value.name)
     if (form.value.slug) formData.append('slug', form.value.slug)
-    if (form.value.bio) formData.append('bio', form.value.bio)
+    if (form.value.desc) formData.append('desc', form.value.desc)
     if (form.value.country) formData.append('country', form.value.country)
-    if (form.value.founded_year) formData.append('founded_year', form.value.founded_year)
-    if (form.value.website) formData.append('website', form.value.website)
+    if (form.value.year) formData.append('year', form.value.year)
+    if (form.value.url_web) formData.append('url_web', form.value.url_web)
     if (photoFile.value) formData.append('photo', photoFile.value)
     
     let response

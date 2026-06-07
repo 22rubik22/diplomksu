@@ -39,6 +39,23 @@ class BrandController extends Controller
         
         $brands = $query->get();
         
+        // Добавляем недостающие поля в ответ
+        $brands = $brands->map(function ($brand) {
+            return [
+                'id' => $brand->id,
+                'name' => $brand->name,
+                'slug' => $brand->slug,
+                'desc' => $brand->desc,
+                'photo' => $brand->photo,
+                'country' => $brand->country,
+                'year' => $brand->year,
+                'url_web' => $brand->url_web,
+                'products_count' => $brand->products_count,
+                'created_at' => $brand->created_at,
+                'updated_at' => $brand->updated_at,
+            ];
+        });
+        
         return response()->json([
             'success' => true,
             'data' => $brands
@@ -98,6 +115,9 @@ class BrandController extends Controller
             'slug' => $brand->slug,
             'desc' => $brand->desc,
             'photo' => $brand->photo,
+            'country' => $brand->country,
+            'year' => $brand->year,
+            'url_web' => $brand->url_web,
             'created_at' => $brand->created_at,
             'updated_at' => $brand->updated_at,
             'products_count' => count($productsData),
@@ -162,6 +182,9 @@ class BrandController extends Controller
             'slug' => 'nullable|string|max:255|unique:brands,slug',
             'desc' => 'nullable|string',
             'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'country' => 'nullable|string|max:255',
+            'year' => 'nullable|integer|min:1900|max:' . date('Y'),
+            'url_web' => 'nullable|url|max:255',
         ]);
         
         // Генерируем slug, если не указан
@@ -214,6 +237,9 @@ class BrandController extends Controller
             ],
             'desc' => 'nullable|string',
             'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'country' => 'nullable|string|max:255',
+            'year' => 'nullable|integer|min:1900|max:' . date('Y'),
+            'url_web' => 'nullable|url|max:255',
         ]);
         
         // Генерируем slug, если изменилось имя

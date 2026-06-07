@@ -9,7 +9,7 @@ class Brand extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'slug', 'photo'
+        'name', 'slug', 'photo', 'desc','country','year','url_web'
     ];
 
     // Связь "один ко многим" (у бренда много товаров)
