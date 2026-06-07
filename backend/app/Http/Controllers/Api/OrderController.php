@@ -121,7 +121,7 @@ public function store(Request $request)
         'payment_method' => 'required|string|max:255',
         'comment' => 'nullable|string',
         'use_bonus' => 'boolean',
-        'bonus_amount' => 'nullable|numeric|min:0', // ДОБАВИТЬ
+        'bonus_amount' => 'nullable|numeric|min:0',
         'items' => 'nullable|array',
     ]);
     
@@ -174,13 +174,27 @@ public function store(Request $request)
     // Расчет бонусов к начислению (5% от стоимости товаров)
     $bonusToEarn = floor($subtotal * 0.05);
     
-    // ИСПРАВЛЕНО: используем переданную сумму бонусов
+    // ИСПРАВЛЕНО: разрешаем использовать бонусы до 100% от общей суммы
     $bonusUsed = 0;
     if (($validated['use_bonus'] ?? false) && isset($validated['bonus_amount']) && $validated['bonus_amount'] > 0) {
-        // Проверяем, что запрошенная сумма не превышает доступные бонусы и лимит 50%
-        $maxAllowedBonus = min($bonusRecord->bonus, floor($totalAmount * 0.5));
+        // Проверяем, что запрошенная сумма не превышает доступные бонусы
+        $maxAllowedBonus = $bonusRecord->bonus;
         $bonusUsed = min($validated['bonus_amount'], $maxAllowedBonus);
+        
+        // Ограничиваем сумму бонусов общей суммой заказа (можно покрыть 100%)
+        if ($bonusUsed > $totalAmount) {
+            $bonusUsed = $totalAmount;
+        }
+        
         $totalAmount = $totalAmount - $bonusUsed;
+    }
+    
+    // ИСПРАВЛЕНО: убрали проверку на минимальную сумму, разрешаем totalAmount = 0
+    if ($totalAmount < 0) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Ошибка расчёта суммы заказа'
+        ], 400);
     }
     
     DB::beginTransaction();
@@ -197,7 +211,8 @@ public function store(Request $request)
             'delivery_address' => $validated['delivery_address'],
             'delivery_date' => $validated['delivery_date'] ?? null,
             'payment_method' => $validated['payment_method'],
-            'payment_status' => $validated['payment_method'] === 'card' ? Order::PAYMENT_PAID : Order::PAYMENT_PENDING,
+            // ИСПРАВЛЕНО: если сумма 0, сразу помечаем как оплаченный
+            'payment_status' => $totalAmount <= 0 ? Order::PAYMENT_PAID : ($validated['payment_method'] === 'card' ? Order::PAYMENT_PAID : Order::PAYMENT_PENDING),
             'customer_name' => $user->name,
             'customer_email' => $user->email,
             'customer_phone' => $user->phone ?? '',

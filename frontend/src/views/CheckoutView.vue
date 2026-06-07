@@ -280,7 +280,7 @@
               :disabled="!canSubmitOrder || submitting"
             >
               <i v-if="submitting" class="fas fa-spinner fa-spin mr-2"></i>
-              {{ submitting ? 'Обработка...' : 'Подтвердить заказ' }}
+              {{ submitting ? 'Обработка...' : (totalToPay <= 0 ? 'Подтвердить заказ' : 'Подтвердить заказ') }}
             </button>
             
             <p class="text-center text-xs text-white/30 mt-4">
@@ -307,7 +307,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
@@ -626,7 +626,12 @@ const submitOrder = async () => {
   submitting.value = true
   
   try {
-    if (form.value.paymentMethod === 'card') {
+    // ИСПРАВЛЕНО: если сумма 0, пропускаем оплату и сразу создаём заказ
+    if (totalToPay.value <= 0) {
+      await createOrder()
+      success('Заказ успешно оформлен!')
+      router.push('/account?tab=orders')
+    } else if (form.value.paymentMethod === 'card') {
       await createPayment()
       showPaymentModal.value = true
     } else {
